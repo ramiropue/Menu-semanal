@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+
+<html class="light" lang="es"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Añadir al Congelador - Inventario</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;family=Manrope:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "surface-dim": "#c7dde9",
+                    "surface-container-highest": "#cfe6f2",
+                    "secondary-fixed": "#ffdbcf",
+                    "secondary": "#a83900",
+                    "on-secondary-fixed-variant": "#802a00",
+                    "tertiary-fixed": "#ffdbd0",
+                    "surface-bright": "#f3faff",
+                    "primary-fixed": "#a0f2e1",
+                    "error": "#ba1a1a",
+                    "on-tertiary": "#ffffff",
+                    "on-tertiary-fixed": "#390c01",
+                    "on-primary-fixed": "#00201b",
+                    "primary": "#00483e",
+                    "inverse-primary": "#84d5c5",
+                    "tertiary-fixed-dim": "#ffb59e",
+                    "on-secondary-container": "#531800",
+                    "on-primary": "#ffffff",
+                    "outline-variant": "#bec8c9",
+                    "on-secondary-fixed": "#380d00",
+                    "on-primary-container": "#89dbca",
+                    "surface-container-high": "#d5ecf8",
+                    "inverse-on-surface": "#dff4ff",
+                    "on-primary-fixed-variant": "#005046",
+                    "primary-fixed-dim": "#84d5c5",
+                    "surface": "#f3faff",
+                    "on-secondary": "#ffffff",
+                    "on-tertiary-fixed-variant": "#713623",
+                    "on-error": "#ffffff",
+                    "on-error-container": "#93000a",
+                    "on-surface-variant": "#3f4949",
+                    "tertiary-container": "#834531",
+                    "surface-variant": "#cfe6f2",
+                    "surface-container-lowest": "#ffffff",
+                    "on-tertiary-container": "#ffbca8",
+                    "on-background": "#071e27",
+                    "secondary-container": "#fc6018",
+                    "surface-container-low": "#e6f6ff",
+                    "on-surface": "#071e27",
+                    "tertiary": "#672e1c",
+                    "secondary-fixed-dim": "#ffb59a",
+                    "background": "#f3faff",
+                    "outline": "#6f7979",
+                    "surface-container": "#dbf1fe",
+                    "surface-tint": "#046b5e",
+                    "error-container": "#ffdad6",
+                    "primary-container": "#006155",
+                    "inverse-surface": "#1e333c"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.25rem",
+                    "lg": "0.5rem",
+                    "xl": "0.75rem",
+                    "full": "9999px"
+            },
+            "fontFamily": {
+                    "headline": ["Plus Jakarta Sans"],
+                    "body": ["Manrope"],
+                    "label": ["Manrope"]
+            }
+          },
+        },
+      }
+    </script>
+<style>body { min-height: max(884px, 100dvh); } .has-\[\:checked\]\:border-secondary-container:has(:checked) { border-color: #8B2E0B !important; } .has-\[\:checked\]\:bg-secondary-fixed:has(:checked) { background-color: #ffdbd0 !important; } </style>
+<style>body { min-height: max(884px, 100dvh); } .has-\[\:checked\]\:border-secondary-container:has(:checked) { border-color: #8B2E0B !important; } .has-\[\:checked\]\:bg-secondary-fixed:has(:checked) { background-color: #ffdbd0 !important; } </style>
+</head>
+<body class="bg-background text-on-surface min-h-screen pb-24">
+<!-- TopAppBar Shell -->
+<header class="fixed top-0 w-full z-50 flex items-center justify-between px-4 h-16 bg-[#f3faff] dark:bg-slate-950">
+<div class="flex items-center gap-4">
+<button class="p-2 text-cyan-800 dark:text-cyan-400 hover:bg-cyan-100 dark:hover:bg-slate-800 transition-colors active:scale-95 duration-150 rounded-full">
+<span class="material-symbols-outlined">arrow_back</span>
+</button>
+<h1 class="font-['Plus_Jakarta_Sans'] font-bold text-lg text-cyan-800 dark:text-cyan-400">Añadir al Congelador</h1>
+</div>
+<button class="p-2 text-cyan-800 dark:text-cyan-400 hover:bg-cyan-100 dark:hover:bg-slate-800 transition-colors active:scale-95 duration-150 rounded-full">
+<span class="material-symbols-outlined">settings</span>
+</button>
+</header>
+<main class="pt-20 px-6 max-w-md mx-auto">
+<!-- Hero Section Aesthetic -->
+<div class="relative w-full h-48 mb-8 rounded-3xl overflow-hidden shadow-xl shadow-surface-dim/50">
+<img class="w-full h-full object-cover" data-alt="Modern high-end kitchen freezer interior with organized glass containers and frost-free clear shelves, soft teal lighting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBQWC1JN_wvvc9utZRDBx6BsnVZfrob7p45GVYWuCNlOGCI-_-vE-Yq3uzbzVhBhMBRahFDuwvYdOJ7uIM-sp3CzAOyjkFOELDq9BhGA0WTNox_bwRbR4hqbBD6J-V_SUXABP9I7wymP-VDxxfogxAgZyZEYmKShaneBEoDo4bwOfy6QiUerV6C1eHPiy8uLJrdPojVsItX4dFHbeqf1EIFr9siuDVU1ERefjN-6UBmyD-zlaw6OAz5POBRGK7y13HifENY0yC19lI"/>
+<div class="absolute inset-0 bg-gradient-to-t from-primary/60 to-transparent"></div>
+<div class="absolute bottom-4 left-6">
+<p class="text-on-primary font-headline font-extrabold text-2xl tracking-tight">Nuevo Registro</p>
+<p class="text-on-primary/80 font-body text-sm">Organiza tu reserva culinaria</p>
+</div>
+</div>
+<form class="space-y-8">
+<!-- 1. Campo de texto: Nombre -->
+<div class="group">
+<label class="block text-primary font-headline font-bold text-sm mb-2 ml-1" for="food_name">¿Qué vamos a guardar?</label>
+<div class="relative">
+<input class="w-full bg-surface-container-low border-none rounded-2xl px-5 py-4 focus:ring-2 focus:ring-secondary-container transition-all text-on-surface placeholder:text-outline-variant font-medium" id="food_name" placeholder="Ej: Lasaña de la abuela, Merluza..." type="text"/>
+<span class="material-symbols-outlined absolute right-4 top-1/2 -translate-y-1/2 text-primary/40">restaurant</span>
+</div>
+</div>
+<!-- 5. Selector de categoría (Bento-style selection) -->
+<div>
+<label class="block text-primary font-headline font-bold text-sm mb-4 ml-1">Categoría</label>
+<div class="grid grid-cols-2 gap-3">
+<label class="relative flex flex-col items-center justify-center p-4 bg-surface-container-highest rounded-2xl cursor-pointer hover:bg-secondary-fixed transition-colors border-2 border-transparent has-[:checked]:border-secondary-container has-[:checked]:bg-secondary-fixed">
+<input checked="" class="sr-only" name="category" type="radio" value="carnes"/>
+<span class="material-symbols-outlined text-secondary text-3xl mb-1">kebab_dining</span>
+<span class="text-xs font-bold text-on-surface-variant">Carnes</span>
+</label>
+<label class="relative flex flex-col items-center justify-center p-4 bg-surface-container-highest rounded-2xl cursor-pointer hover:bg-secondary-fixed transition-colors border-2 border-transparent has-[:checked]:border-secondary-container has-[:checked]:bg-secondary-fixed">
+<input class="sr-only" name="category" type="radio" value="pescados"/>
+<span class="material-symbols-outlined text-secondary text-3xl mb-1">set_meal</span>
+<span class="text-xs font-bold text-on-surface-variant">Pescados</span>
+</label>
+<label class="relative flex flex-col items-center justify-center p-4 bg-surface-container-highest rounded-2xl cursor-pointer hover:bg-secondary-fixed transition-colors border-2 border-transparent has-[:checked]:border-secondary-container has-[:checked]:bg-secondary-fixed">
+<input class="sr-only" name="category" type="radio" value="verduras"/>
+<span class="material-symbols-outlined text-secondary text-3xl mb-1">eco</span>
+<span class="text-xs font-bold text-on-surface-variant">Verduras</span>
+</label>
+<label class="relative flex flex-col items-center justify-center p-4 bg-surface-container-highest rounded-2xl cursor-pointer hover:bg-secondary-fixed transition-colors border-2 border-transparent has-[:checked]:border-secondary-container has-[:checked]:bg-secondary-fixed">
+<input class="sr-only" name="category" type="radio" value="cocinados"/>
+<span class="material-symbols-outlined text-secondary text-3xl mb-1">soup_kitchen</span>
+<span class="text-xs font-bold text-on-surface-variant">Cocinados</span>
+</label>
+</div>
+</div>
+<!-- 2. Selector de ubicación (Chips) -->
+<div>
+<label class="block text-primary font-headline font-bold text-sm mb-3 ml-1">Ubicación</label>
+<div class="flex flex-wrap gap-2">
+<label class="px-5 py-2 rounded-full bg-surface-container border-2 border-transparent text-primary text-sm font-bold cursor-pointer transition-all has-[:checked]:bg-primary has-[:checked]:text-on-primary">
+<input checked="" class="sr-only" name="location" type="radio" value="casa"/>
+                        Casa
+                    </label>
+<label class="px-5 py-2 rounded-full bg-surface-container border-2 border-transparent text-primary text-sm font-bold cursor-pointer transition-all has-[:checked]:bg-primary has-[:checked]:text-on-primary">
+<input class="sr-only" name="location" type="radio" value="arcon"/>
+                        Arcón
+                    </label>
+<label class="px-5 py-2 rounded-full bg-surface-container border-2 border-transparent text-primary text-sm font-bold cursor-pointer transition-all has-[:checked]:bg-primary has-[:checked]:text-on-primary">
+<input class="sr-only" name="location" type="radio" value="choco"/>
+                        Choco
+                    </label>
+</div>
+</div>
+<!-- Double Column for Quantity and Date -->
+<div class="grid grid-cols-2 gap-6">
+<!-- 3. Selector de cantidad -->
+<div>
+<label class="block text-primary font-headline font-bold text-sm mb-2 ml-1">Cantidad</label>
+<div class="flex items-center bg-surface-container-low rounded-2xl p-1 justify-between">
+<button class="w-10 h-10 flex items-center justify-center rounded-xl bg-surface-container-highest text-secondary hover:bg-secondary-fixed active:scale-90 transition-all" type="button">
+<span class="material-symbols-outlined">remove</span>
+</button>
+<span class="text-on-surface font-headline font-extrabold text-xl">1</span>
+<button class="w-10 h-10 flex items-center justify-center rounded-xl text-white hover:bg-secondary transition-all active:scale-90" style="background-color: #8B2E0B;" type="button">
+<span class="material-symbols-outlined">add</span>
+</button>
+</div>
+</div>
+<!-- 4. Selector de fecha -->
+<div>
+<label class="block text-primary font-headline font-bold text-sm mb-2 ml-1" for="freeze_date">Congelado el</label>
+<input class="w-full bg-surface-container-low border-none rounded-2xl px-4 py-3 focus:ring-2 focus:ring-secondary-container text-on-surface-variant font-medium text-sm" id="freeze_date" type="date" value="2024-05-20"/>
+</div>
+</div>
+<!-- 6. Botón Guardar -->
+<div class="pt-4">
+<button class="w-full text-white py-5 rounded-3xl font-headline font-extrabold text-lg shadow-xl transition-all active:scale-[0.98] flex items-center justify-center gap-3 hover:bg-[#702509]" style="background-color: #8B2E0B; --tw-shadow-color: rgba(139, 46, 11, 0.3);" type="submit"><span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">inventory_2</span>Guardar</button>
+</div>
+</form>
+</main>
+<!-- BottomNavBar Shell -->
+<nav class="fixed bottom-0 w-full z-50 flex justify-around items-center px-4 pb-4 pt-2 bg-[#f3faff]/80 dark:bg-slate-950/80 backdrop-blur-md border-t border-cyan-100 dark:border-slate-800 shadow-lg rounded-t-2xl">
+<a class="flex flex-col items-center justify-center text-cyan-600 dark:text-cyan-500 px-3 py-1 hover:text-orange-500 transition-all active:scale-90 duration-200" href="#">
+<span class="material-symbols-outlined">restaurant</span>
+<span class="font-['Plus_Jakarta_Sans'] font-medium text-[0.625rem]">Recetas</span>
+</a>
+<a class="flex flex-col items-center justify-center text-cyan-600 dark:text-cyan-500 px-3 py-1 hover:text-orange-500 transition-all active:scale-90 duration-200" href="#">
+<span class="material-symbols-outlined">calendar_today</span>
+<span class="font-['Plus_Jakarta_Sans'] font-medium text-[0.625rem]">Planear</span>
+</a><a class="flex flex-col items-center justify-center text-cyan-600 dark:text-cyan-500 px-3 py-1 hover:text-orange-500 transition-all active:scale-90 duration-200" href="#">
+<span class="material-symbols-outlined">shopping_cart</span>
+<span class="font-['Plus_Jakarta_Sans'] font-medium text-[0.625rem]">Lista</span>
+</a>
+<a class="flex flex-col items-center justify-center bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 rounded-xl px-3 py-1 hover:text-orange-500 transition-all active:scale-90 duration-200" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">ac_unit</span>
+<span class="font-['Plus_Jakarta_Sans'] font-medium text-[0.625rem]">Congelador</span>
+</a>
+</nav>
+</body></html>

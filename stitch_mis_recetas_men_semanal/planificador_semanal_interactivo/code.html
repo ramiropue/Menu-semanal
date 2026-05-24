@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+
+<html lang="es"><head><style>
+  body {
+    padding-bottom: 10rem !important;
+  }
+  .bottom-nav {
+    position: fixed;
+    bottom: 0;
+    width: 100%;
+    background: rgba(243, 250, 255, 0.8);
+    backdrop-filter: blur(1.2rem);
+    -webkit-backdrop-filter: blur(1.2rem);
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+    padding: 0.8rem 1.6rem 1.6rem 1.6rem;
+    border-top: 0.1rem solid #cffafe;
+    box-shadow: 0 -0.4rem 2rem rgba(0,0,0,0.05);
+    border-radius: 1.6rem 1.6rem 0 0;
+    z-index: 100;
+  }
+  .nav-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-decoration: none;
+    color: #0891b2;
+    padding: 0.4rem 1.2rem;
+    transition: all 0.2s;
+    border-radius: 1.2rem;
+    gap: 0.2rem;
+  }
+  .nav-item:hover {
+    color: #f97316;
+  }
+  .nav-item:active {
+    transform: scale(0.9);
+  }
+  .nav-item.active {
+    background: #ffedd5;
+    color: #c2410c;
+  }
+  .nav-label {
+    font-size: 1rem;
+    font-weight: 500;
+    font-family: 'Plus Jakarta Sans', sans-serif;
+  }
+</style></head><body>```html
+
+
+
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,700;0,800;1,800&amp;family=Manrope:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>:root {
+  font-size: 10px;
+  --surface: #f3faff;
+  --on-surface: #071e27;
+  --primary: #004f45;
+  --on-primary: #ffffff;
+  --primary-container: #00695c;
+  --secondary: #a83900;
+  --on-secondary: #ffffff;
+  --secondary-container: #fc6018;
+  --on-secondary-container: #531800;
+  --surface-container-low: #e6f6ff;
+  --surface-container: #dbf1fe;
+  --surface-container-highest: #cfe6f2;
+  --outline: #6e7976;
+  --font-body: 'Manrope', sans-serif;
+  --font-headline: 'Plus Jakarta Sans', sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: var(--font-body);
+  background-color: var(--surface);
+  color: var(--on-surface);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+header {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1.6rem 2.4rem;
+  background-color: rgba(243, 250, 255, 0.8);
+  backdrop-filter: blur(1.2rem);
+  -webkit-backdrop-filter: blur(1.2rem);
+}
+
+.header-title-container {
+  display: flex;
+  align-items: center;
+  gap: 1.6rem;
+}
+
+.header-title {
+  font-size: 2rem;
+  font-weight: 900;
+  color: var(--primary);
+  font-family: var(--font-headline);
+  font-style: italic;
+}
+
+.avatar {
+  width: 4rem;
+  height: 4rem;
+  border-radius: 50%;
+  overflow: hidden;
+  border: 0.2rem solid rgba(0, 79, 69, 0.1);
+  background-color: var(--surface-container-highest);
+}
+
+.avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+main {
+  flex-grow: 1;
+  padding: 3.2rem 2.4rem 4rem 2.4rem;
+  max-width: 120rem;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.hero-section {
+  margin-bottom: 4rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.6rem;
+}
+
+@media (min-width: 768px) {
+  .hero-section {
+    flex-direction: row;
+    align-items: flex-end;
+    justify-content: space-between;
+  }
+}
+
+.subtitle {
+  color: var(--secondary);
+  font-family: var(--font-headline);
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-size: 1.2rem;
+  margin-bottom: 0.8rem;
+  display: block;
+}
+
+.title {
+  font-size: 4rem;
+  font-family: var(--font-headline);
+  font-weight: 900;
+  color: var(--on-surface);
+  letter-spacing: -0.05em;
+  line-height: 1;
+}
+
+.action-buttons {
+  display: flex;
+  gap: 0.8rem;
+}
+
+.btn-primary {
+  background-color: var(--primary);
+  color: var(--on-primary);
+  padding: 1.2rem 2.4rem;
+  border-radius: 1.2rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  border: none;
+  cursor: pointer;
+  transition: transform 0.2s;
+  font-size: 1.4rem;
+}
+
+.btn-icon {
+  background-color: var(--surface-container-highest);
+  color: var(--primary);
+  padding: 1.2rem 1.6rem;
+  border-radius: 1.2rem;
+  border: none;
+  cursor: pointer;
+  transition: transform 0.2s;
+}
+
+.grid-container {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 2.4rem;
+}
+
+@media (min-width: 768px) {
+  .grid-container {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (min-width: 1024px) {
+  .grid-container {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+.day-card {
+  background: rgba(255, 255, 255, 0.6);
+  backdrop-filter: blur(1.2rem);
+  -webkit-backdrop-filter: blur(1.2rem);
+  border-radius: 2rem;
+  padding: 2.4rem;
+  border: 0.1rem solid rgba(255, 255, 255, 0.4);
+  box-shadow: 0 0.1rem 0.2rem rgba(0,0,0,0.05);
+}
+
+.day-title {
+  color: var(--primary);
+  font-family: var(--font-headline);
+  font-weight: 900;
+  font-size: 2.4rem;
+  text-transform: uppercase;
+  font-style: italic;
+  margin-bottom: 2rem;
+}
+
+.meal-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1.2rem;
+}
+
+.meal-item {
+  background-color: rgba(255, 255, 255, 0.5);
+  padding: 1.2rem;
+  border-radius: 1.6rem;
+  display: flex;
+  align-items: center;
+  gap: 1.2rem;
+  position: relative;
+}
+
+.meal-item.empty {
+  border: 0.1rem dashed var(--outline);
+  background-color: transparent;
+  opacity: 0.6;
+}
+
+.meal-img-container {
+  width: 5.6rem;
+  height: 5.6rem;
+  border-radius: 1.2rem;
+  overflow: hidden;
+  flex-shrink: 0;
+  background-color: var(--surface-container-highest);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.meal-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.meal-info {
+  flex-grow: 1;
+}
+
+.meal-type {
+  font-size: 0.9rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  color: var(--secondary);
+  margin-bottom: 0.2rem;
+}
+
+.meal-name {
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: var(--on-surface);
+  line-height: 1.2;
+}
+
+.meal-action {
+  color: var(--primary);
+  opacity: 0.4;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.meal-action:hover {
+  opacity: 1;
+}
+
+.meal-action span {
+  font-size: 1.8rem;
+}
+</style>
+<header>
+<div class="header-title-container">
+<span class="material-symbols-outlined" style="color: var(--primary); font-size: 2.4rem;"></span>
+<h1 class="header-title">Organización de comidas</h1>
+</div>
+<div class="avatar">
+<img alt="Perfil de Chef" class="" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAO94dkox-nRvtMBf4bhsExnQjLJIZL00OIMjUc-JBXFYHvk1l2xl1Pnl4t4r4spM9s-ByD6wtS0aia3Si0IaJG9A_06_NrXSj7bR6mGY4Q2ue0vhZzjL5B4MEsKVmXSKfK04UImEzo0H8KqMKh5KqwbylPe4qi5OSUfv29yJVOljLFumayrM8oeaKgcLLAww4XP-AqO30ZOrIzoIrGljUXKVSAQDmSj6jH3BR4x-ozLK7sLt35LJRhoX30CoNa4qQdSglTheheTEU"/>
+</div>
+</header>
+<main>
+<section class="hero-section">
+<div>
+<span class="subtitle">Menú de la Semana</span>
+<h2 class="title">Planificador Semanal</h2>
+</div>
+<div class="action-buttons">
+<button class="btn-primary">
+<span class="material-symbols-outlined" style="font-size: 2rem;">share</span>
+<span class="">Compartir</span>
+</button>
+<button class="btn-icon">
+<span class="material-symbols-outlined" style="font-size: 2rem;">settings</span>
+</button>
+</div>
+</section>
+<div class="grid-container"><!-- Lunes -->
+<div class="day-card">
+<h3 class="day-title">Lunes</h3>
+<div class="meal-list">
+<div class="meal-item">
+<div class="meal-img-container"><img class="meal-img" src="https://lh3.googleusercontent.com/aida-public/AB6AXuA2awzx9UFg5LL7IyMCq-0mdVR6Mwz4J7ylMiaHzZIR0Sbg_30jalInwkF2ANjHx47j643XF_7KIVzbs678e9bae9EMmQ9QMpIAVyzz_Mo3UG0lHkHVco2UewkWYGJJf2rWoxM2BNHeY1zHOVuuXMDe2yah0KyaxAm5PYYu1D3LMKvMzicYs2ATKkDApEe1e0wVJocChTtKoBRF8INGEmwCmt3KLojXNyfH2w4Oj7GZMo4IBDqrMGFfXwnUnS3-P9RX0W1oZrugeMM"/></div>
+<div class="meal-info">
+<p class="meal-type">Desayuno</p>
+<p class="meal-name">Bowl de Avena y Frutos Rojos</p>
+</div>
+<div class="meal-action"><span class="material-symbols-outlined">edit</span></div>
+</div>
+<div class="meal-item">
+<div class="meal-img-container"><img class="meal-img" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCBOwpciGDHeqtLdAJeJSp59BkPhEPzeL49dIe8nxYNmToHkYJFjbOJbt2uvnHUB_70JgN8w2i7y2WLBnlobMTCJe5s5vMYJA9BFQy92xumCKamWm3GydHdCFOswSIbQaLABr_6vkEIzeUi2W0dJ_BTHmRVpOFuMIMX2yhV2Hn2FAwzNAf5PVSRlRnDyIFCtpjVI-S7P4zBdqYR0LpCzv7TFw3BiSqivZBV7dHgoSirg7UmU0deUQbfWt-yB3JbzwUSDpKQWJ-K3v4"/></div>
+<div class="meal-info">
+<p class="meal-type">Almuerzo</p>
+<p class="meal-name">Salmón al Horno con Espárragos</p>
+</div>
+<div class="meal-action"><span class="material-symbols-outlined">edit</span></div>
+</div>
+<div class="meal-item">
+<div class="meal-img-container"><img class="meal-img" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCKMoUrdeyH2Nm2pHtBGz16zE9Sqr2tYv65xCaAYpjaFPUeZDt9YZj4CgKPPYYng5uLzqMVTg5tR-PaQiZk-7Nb_FvdS3B1H1h1ro8aWQoc7NXprH5Sb4Xqy_e9OXtoaJhsk-cr9ax5eBcvdGy43UiG01lvkLdit08Ev2GvMXK2t_s3dcUkEAPj4NsvW8fSKNGuYbmS_iV_vaAij4mlXitOl2QzbHkebqRn1zXyycvwFCXjRbO5Rv4txelHOYUcONaZWPJzVdYsvo4"/></div>
+<div class="meal-info">
+<p class="meal-type">Cena</p>
+<p class="meal-name">Sopa Crema de Calabaza</p>
+</div>
+<div class="meal-action"><span class="material-symbols-outlined">edit</span></div>
+</div>
+</div>
+</div>
+<!-- Martes -->
+<div class="day-card">
+<h3 class="day-title">Martes</h3>
+<div class="meal-list">
+<div class="meal-item">
+<div class="meal-img-container"><img class="meal-img" src="https://lh3.googleusercontent.com/aida-public/AB6AXuA2awzx9UFg5LL7IyMCq-0mdVR6Mwz4J7ylMiaHzZIR0Sbg_30jalInwkF2ANjHx47j643XF_7KIVzbs678e9bae9EMmQ9QMpIAVyzz_Mo3UG0lHkHVco2UewkWYGJJf2rWoxM2BNHeY1zHOVuuXMDe2yah0KyaxAm5PYYu1D3LMKvMzicYs2ATKkDApEe1e0wVJocChTtKoBRF8INGEmwCmt3KLojXNyfH2w4Oj7GZMo4IBDqrMGFfXwnUnS3-P9RX0W1oZrugeMM"/></div>
+<div class="meal-info">
+<p class="meal-type">Desayuno</p>
+<p class="meal-name">Omelette de Espinacas</p>
+</div>
+<div class="meal-action"><span class="material-symbols-outlined">edit</span></div>
+</div>
+<div class="meal-item">
+<div class="meal-img-container"><img class="meal-img" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCBOwpciGDHeqtLdAJeJSp59BkPhEPzeL49dIe8nxYNmToHkYJFjbOJbt2uvnHUB_70JgN8w2i7y2WLBnlobMTCJe5s5vMYJA9BFQy92xumCKamWm3GydHdCFOswSIbQaLABr_6vkEIzeUi2W0dJ_BTHmRVpOFuMIMX2yhV2Hn2FAwzNAf5PVSRlRnDyIFCtpjVI-S7P4zBdqYR0LpCzv7TFw3BiSqivZBV7dHgoSirg7UmU0deUQbfWt-yB3JbzwUSDpKQWJ-K3v4"/></div>
+<div class="meal-info">
+<p class="meal-type">Almuerzo</p>
+<p class="meal-name">Ensalada Mediterránea</p>
+</div>
+<div class="meal-action"><span class="material-symbols-outlined">edit</span></div>
+</div>
+<div class="meal-item empty">
+<div class="meal-img-container"><span class="material-symbols-outlined" style="color: var(--outline)">restaurant</span></div>
+<div class="meal-info">
+<p class="meal-type">Cena</p>
+<p class="meal-name">Sin planificar</p>
+</div>
+<div class="meal-action"><span class="material-symbols-outlined">add_circle</span></div>
+</div>
+</div>
+</div>
+<!-- Miércoles -->
+<div class="day-card">
+<h3 class="day-title">Miércoles</h3>
+<div class="meal-list">
+<div class="meal-item empty">
+<div class="meal-img-container"><span class="material-symbols-outlined" style="color: var(--outline)">restaurant</span></div>
+<div class="meal-info">
+<p class="meal-type">Desayuno</p>
+<p class="meal-name">Sin planificar</p>
+</div>
+<div class="meal-action"><span class="material-symbols-outlined">add_circle</span></div>
+</div>
+<div class="meal-item empty">
+<div class="meal-img-container"><span class="material-symbols-outlined" style="color: var(--outline)">restaurant</span></div>
+<div class="meal-info">
+<p class="meal-type">Almuerzo</p>
+<p class="meal-name">Sin planificar</p>
+</div>
+<div class="meal-action"><span class="material-symbols-outlined">add_circle</span></div>
+</div>
+<div class="meal-item empty">
+<div class="meal-img-container"><span class="material-symbols-outlined" style="color: var(--outline)">restaurant</span></div>
+<div class="meal-info">
+<p class="meal-type">Cena</p>
+<p class="meal-name">Sin planificar</p>
+</div>
+<div class="meal-action"><span class="material-symbols-outlined">add_circle</span></div>
+</div>
+</div>
+</div>
+<!-- Jueves -->
+<div class="day-card">
+<h3 class="day-title">Jueves</h3>
+<div class="meal-list">
+<div class="meal-item empty"><div class="meal-img-container"><span class="material-symbols-outlined">restaurant</span></div><div class="meal-info"><p class="meal-type">Desayuno</p><p class="meal-name">Sin planificar</p></div><div class="meal-action"><span class="material-symbols-outlined">add_circle</span></div></div>
+<div class="meal-item empty"><div class="meal-img-container"><span class="material-symbols-outlined">restaurant</span></div><div class="meal-info"><p class="meal-type">Almuerzo</p><p class="meal-name">Sin planificar</p></div><div class="meal-action"><span class="material-symbols-outlined">add_circle</span></div></div>
+<div class="meal-item empty"><div class="meal-img-container"><span class="material-symbols-outlined">restaurant</span></div><div class="meal-info"><p class="meal-type">Cena</p><p class="meal-name">Sin planificar</p></div><div class="meal-action"><span class="material-symbols-outlined">add_circle</span></div></div>
+</div>
+</div>
+<!-- Viernes -->
+<div class="day-card">
+<h3 class="day-title">Viernes</h3>
+<div class="meal-list">
+<div class="meal-item empty"><div class="meal-img-container"><span class="material-symbols-outlined">restaurant</span></div><div class="meal-info"><p class="meal-type">Desayuno</p><p class="meal-name">Sin planificar</p></div><div class="meal-action"><span class="material-symbols-outlined">add_circle</span></div></div>
+<div class="meal-item empty"><div class="meal-img-container"><span class="material-symbols-outlined">restaurant</span></div><div class="meal-info"><p class="meal-type">Almuerzo</p><p class="meal-name">Sin planificar</p></div><div class="meal-action"><span class="material-symbols-outlined">add_circle</span></div></div>
+<div class="meal-item empty"><div class="meal-img-container"><span class="material-symbols-outlined">restaurant</span></div><div class="meal-info"><p class="meal-type">Cena</p><p class="meal-name">Sin planificar</p></div><div class="meal-action"><span class="material-symbols-outlined">add_circle</span></div></div>
+</div>
+</div>
+<!-- Sábado -->
+<div class="day-card">
+<h3 class="day-title">Sábado</h3>
+<div class="meal-list">
+<div class="meal-item empty"><div class="meal-img-container"><span class="material-symbols-outlined">restaurant</span></div><div class="meal-info"><p class="meal-type">Desayuno</p><p class="meal-name">Sin planificar</p></div><div class="meal-action"><span class="material-symbols-outlined">add_circle</span></div></div>
+<div class="meal-item empty"><div class="meal-img-container"><span class="material-symbols-outlined">restaurant</span></div><div class="meal-info"><p class="meal-type">Almuerzo</p><p class="meal-name">Sin planificar</p></div><div class="meal-action"><span class="material-symbols-outlined">add_circle</span></div></div>
+<div class="meal-item empty"><div class="meal-img-container"><span class="material-symbols-outlined">restaurant</span></div><div class="meal-info"><p class="meal-type">Cena</p><p class="meal-name">Sin planificar</p></div><div class="meal-action"><span class="material-symbols-outlined">add_circle</span></div></div>
+</div>
+</div>
+<!-- Domingo -->
+<div class="day-card">
+<h3 class="day-title">Domingo</h3>
+<div class="meal-list">
+<div class="meal-item empty"><div class="meal-img-container"><span class="material-symbols-outlined">restaurant</span></div><div class="meal-info"><p class="meal-type">Desayuno</p><p class="meal-name">Sin planificar</p></div><div class="meal-action"><span class="material-symbols-outlined">add_circle</span></div></div>
+<div class="meal-item empty"><div class="meal-img-container"><span class="material-symbols-outlined">restaurant</span></div><div class="meal-info"><p class="meal-type">Almuerzo</p><p class="meal-name">Sin planificar</p></div><div class="meal-action"><span class="material-symbols-outlined">add_circle</span></div></div>
+<div class="meal-item empty"><div class="meal-img-container"><span class="material-symbols-outlined">restaurant</span></div><div class="meal-info"><p class="meal-type">Cena</p><p class="meal-name">Sin planificar</p></div><div class="meal-action"><span class="material-symbols-outlined">add_circle</span></div></div>
+</div>
+</div></div></main>
+<nav class="bottom-nav">
+<a class="nav-item" href="#">
+<span class="material-symbols-outlined">restaurant</span>
+<span class="nav-label">Recetas</span>
+</a>
+<a class="nav-item active" href="#">
+<span class="material-symbols-outlined">calendar_today</span>
+<span class="nav-label">Planear</span>
+</a>
+<a class="nav-item" href="#">
+<span class="material-symbols-outlined">shopping_cart</span>
+<span class="nav-label">Lista</span>
+</a>
+<a class="nav-item" href="#">
+<span class="material-symbols-outlined">ac_unit</span>
+<span class="nav-label">Congelador</span>
+</a>
+</nav></body></html>

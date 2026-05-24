@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+
+<html lang="es"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,400;0,700;0,800;1,800&amp;family=Manrope:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "surface": "#f3faff",
+                        "tertiary": "#672e1c",
+                        "secondary-fixed": "#ffdbcf",
+                        "on-secondary-container": "#531800",
+                        "on-tertiary-fixed": "#390c01",
+                        "tertiary-fixed": "#ffdbd0",
+                        "inverse-surface": "#1e333c",
+                        "on-surface": "#071e27",
+                        "error-container": "#ffdad6",
+                        "background": "#f3faff",
+                        "tertiary-container": "#834531",
+                        "secondary-fixed-dim": "#ffb59a",
+                        "primary-fixed-dim": "#84d5c5",
+                        "outline": "#6f7979",
+                        "on-primary": "#ffffff",
+                        "tertiary-fixed-dim": "#ffb59e",
+                        "surface-variant": "#cfe6f2",
+                        "on-secondary-fixed": "#380d00",
+                        "error": "#ba1a1a",
+                        "primary-fixed": "#a0f2e1",
+                        "on-primary-fixed-variant": "#005046",
+                        "on-tertiary": "#ffffff",
+                        "primary": "#00483e",
+                        "surface-tint": "#046b5e",
+                        "surface-container-low": "#e6f6ff",
+                        "on-secondary-fixed-variant": "#802a00",
+                        "surface-bright": "#f3faff",
+                        "on-error-container": "#93000a",
+                        "on-surface-variant": "#3f4949",
+                        "inverse-primary": "#84d5c5",
+                        "surface-container-highest": "#cfe6f2",
+                        "inverse-on-surface": "#dff4ff",
+                        "on-tertiary-fixed-variant": "#713623",
+                        "on-primary-container": "#89dbca",
+                        "outline-variant": "#bec8c9",
+                        "secondary-container": "#fc6018",
+                        "surface-dim": "#c7dde9",
+                        "surface-container": "#dbf1fe",
+                        "on-background": "#071e27",
+                        "on-error": "#ffffff",
+                        "primary-container": "#006155",
+                        "on-secondary": "#ffffff",
+                        "surface-container-lowest": "#ffffff",
+                        "surface-container-high": "#d5ecf8",
+                        "on-primary-fixed": "#00201b",
+                        "secondary": "#a83900"
+                    },
+                    fontFamily: {
+                        "headline": ["Plus Jakarta Sans"],
+                        "body": ["Manrope"],
+                        "label": ["Manrope"]
+                    },
+                    borderRadius: { "DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px" },
+                },
+            },
+        }
+    </script>
+<style>
+        html { font-size: 10px; }
+        body { font-family: 'Manrope', sans-serif; background-color: #f3faff; }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            vertical-align: middle;
+        }
+        .recipe-glass {
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+        }
+        .asymmetric-border {
+            border-radius: 2rem 0.5rem 2rem 0.5rem;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+</head>
+<body class="text-on-surface overflow-x-hidden">
+<!-- TopAppBar -->
+<header class="bg-cyan-50/80 backdrop-blur-md docked full-width top-0 sticky z-50 flex justify-between items-center px-6 py-4 w-full tonal-shift bg-cyan-100/50">
+<div class="flex items-center gap-4">
+<button class="text-cyan-800 tap-highlight-none active:scale-95 duration-200" style="">
+<span class="material-symbols-outlined" data-icon="menu" style="">menu</span>
+</button>
+<h1 class="font-plus-jakarta text-xl font-black text-cyan-900 italic tracking-tight" style="">Mis Recetas</h1>
+</div>
+<div class="w-10 h-10 rounded-full bg-secondary-container flex items-center justify-center overflow-hidden border-2 border-white shadow-sm">
+<img alt="Perfil de Chef" class="w-full h-full object-cover" data-alt="close up profile picture of a professional chef in a white coat with a friendly smile" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCmDDT7K1FXl1r0J5aJByelg-Wlr5n5Lr0RhrH503op_TP4u3eolwMBliP8-WUd4AS0m1Fdpyzs-8ZuMLaMfHql57oW1JihgRSHBCQFj5TMGAMgX0_kcQRV-P8TGIiInEqnY0F1CK_0M9RxEVsnG7wWo5pgLckrWnIUDYYk_4NfURoT8O8swFaNnpQ2Lxenx-1E3gi9oKOMTUrCj8g2wfMk6_42riBWvKXH0UsZ_O83K12OPIQ-hBp5kXiHuPs9gNAj4KjxlEF2hDI" style=""/>
+</div>
+</header>
+<main class="pb-32">
+<!-- Hero Section -->
+<div class="relative w-full h-[397px] md:h-[530px] overflow-hidden">
+<img alt="Paella de Mariscos" class="w-full h-full object-cover" data-alt="Authentic Spanish seafood paella in a traditional pan with large prawns, mussels, and lemon wedges on a rustic table" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDn7lsmGfzcdjmPSxT-0f0PDRxkRc_2r5xQ524q9Mp1ynirjulp039lT9cTbUNzpRJzL20XVxp32Nt68orytqc8YkgadKT40LOSiR5TuV6eVFxHe3uWV9gjpXLzIRcckzf5xYBHEfVwSJct1X0tCB-fUKatYpLWbxW_zOLNQiqWpdiIzRt3HJxtmHvhxCZBfWfGc0Oh6HxNcm6IUT-VkThVkpl9NC0vItkSGyYR-b3zqDn0k_IEMtsknjDfal_xyI7Cxfy06HKpvwA" style=""/>
+<div class="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent"></div>
+<div class="absolute bottom-8 left-6 right-6">
+<span class="bg-secondary-container text-white px-4 py-1 rounded-full text-[1rem] font-bold uppercase tracking-widest mb-4 inline-block" style="">Premium</span>
+<h2 class="text-white font-headline text-5xl md:text-7xl font-extrabold tracking-tighter leading-none" style="">Paella de Mariscos</h2>
+</div>
+</div>
+<!-- Metadata Bento -->
+<section class="px-6 -mt-10 relative z-10">
+<div class="grid grid-cols-3 gap-4">
+<div class="recipe-glass p-6 rounded-3xl flex flex-col items-center justify-center text-center shadow-sm">
+<span class="material-symbols-outlined text-secondary text-3xl mb-2" data-icon="schedule" style="">schedule</span>
+<span class="text-[1.2rem] font-bold text-primary" style="">45 min</span>
+<span class="text-[0.9rem] opacity-60 uppercase font-bold tracking-tighter" style="">Tiempo</span>
+</div>
+<div class="recipe-glass p-6 rounded-3xl flex flex-col items-center justify-center text-center shadow-sm">
+<span class="material-symbols-outlined text-secondary text-3xl mb-2" data-icon="restaurant" style="">restaurant</span>
+<span class="text-[1.2rem] font-bold text-primary" style="">Media</span>
+<span class="text-[0.9rem] opacity-60 uppercase font-bold tracking-tighter" style="">Dificultad</span>
+</div>
+<div class="recipe-glass p-6 rounded-3xl flex flex-col items-center justify-center text-center shadow-sm">
+<span class="material-symbols-outlined text-secondary text-3xl mb-2" data-icon="local_fire_department" style="">local_fire_department</span>
+<span class="text-[1.2rem] font-bold text-primary" style="">620 kcal</span>
+<span class="text-[0.9rem] opacity-60 uppercase font-bold tracking-tighter" style="">Calorías</span>
+</div>
+</div>
+</section>
+<!-- Content Layout -->
+<div class="px-6 mt-12 grid grid-cols-1 lg:grid-cols-12 gap-12">
+<!-- Ingredientes Section -->
+<section class="lg:col-span-4">
+<div class="bg-surface-container-highest p-8 rounded-[3rem] sticky top-24">
+<div class="flex items-center justify-between mb-8">
+<h3 class="font-headline text-3xl font-extrabold text-primary" style="">Ingredientes</h3>
+<span class="material-symbols-outlined text-secondary" data-icon="shopping_basket" style="">shopping_basket</span>
+</div>
+<ul class="flex flex-col gap-2"><li class="flex items-center justify-between py-3 border-b border-surface-variant/30 group hover:bg-surface-container-low/50 transition-colors rounded-xl px-2">
+<span class="text-[1.6rem] text-on-surface-variant font-medium">Arroz Bomba</span>
+<span class="px-4 py-1.5 rounded-full bg-secondary-container/10 text-secondary font-extrabold text-[1.4rem] min-w-[7rem] text-center shadow-sm">400g</span>
+</li>
+<li class="flex items-center justify-between py-3 border-b border-surface-variant/30 group hover:bg-surface-container-low/50 transition-colors rounded-xl px-2">
+<span class="text-[1.6rem] text-on-surface-variant font-medium">Gambones frescos</span>
+<span class="px-4 py-1.5 rounded-full bg-secondary-container/10 text-secondary font-extrabold text-[1.4rem] min-w-[7rem] text-center shadow-sm">8</span>
+</li>
+<li class="flex items-center justify-between py-3 border-b border-surface-variant/30 group hover:bg-surface-container-low/50 transition-colors rounded-xl px-2">
+<span class="text-[1.6rem] text-on-surface-variant font-medium">Mejillones</span>
+<span class="px-4 py-1.5 rounded-full bg-secondary-container/10 text-secondary font-extrabold text-[1.4rem] min-w-[7rem] text-center shadow-sm">250g</span>
+</li>
+<li class="flex items-center justify-between py-3 border-b border-surface-variant/30 group hover:bg-surface-container-low/50 transition-colors rounded-xl px-2">
+<span class="text-[1.6rem] text-on-surface-variant font-medium">Caldo de pescado</span>
+<span class="px-4 py-1.5 rounded-full bg-secondary-container/10 text-secondary font-extrabold text-[1.4rem] min-w-[7rem] text-center shadow-sm">1L</span>
+</li>
+<li class="flex items-center justify-between py-3 border-b border-surface-variant/30 group hover:bg-surface-container-low/50 transition-colors rounded-xl px-2">
+<span class="text-[1.6rem] text-on-surface-variant font-medium">Pimiento rojo</span>
+<span class="px-4 py-1.5 rounded-full bg-secondary-container/10 text-secondary font-extrabold text-[1.4rem] min-w-[7rem] text-center shadow-sm">1</span>
+</li>
+<li class="flex items-center justify-between py-3 group hover:bg-surface-container-low/50 transition-colors rounded-xl px-2">
+<span class="text-[1.6rem] text-on-surface-variant font-medium">Dientes de ajo</span>
+<span class="px-4 py-1.5 rounded-full bg-secondary-container/10 text-secondary font-extrabold text-[1.4rem] min-w-[7rem] text-center shadow-sm">2</span>
+</li></ul>
+<button class="w-full mt-10 py-5 bg-primary text-on-primary rounded-2xl font-bold text-[1.4rem] flex items-center justify-center gap-3 active:scale-95 transition-transform" style="">
+<span class="material-symbols-outlined" data-icon="list_alt" style="">list_alt</span>
+                        Añadir a la lista
+                    </button>
+</div>
+</section>
+<!-- Preparación Section -->
+<section class="lg:col-span-8">
+<div class="flex items-center gap-4 mb-10">
+<h3 class="font-headline text-4xl font-extrabold text-primary" style="">Preparación</h3>
+<div class="h-1 flex-grow bg-surface-container-highest rounded-full"></div>
+</div>
+<div class="space-y-16">
+<!-- Step 1 -->
+<div class="flex gap-8 group">
+<div class="flex-shrink-0">
+<div class="w-16 h-16 rounded-full bg-secondary text-white flex items-center justify-center text-3xl font-black italic shadow-lg group-hover:rotate-12 transition-transform" style="">01</div>
+</div>
+<div class="pt-2">
+<h4 class="text-2xl font-bold text-on-surface mb-3" style="">El sofrito base</h4>
+<p class="text-[1.6rem] leading-relaxed text-on-surface-variant" style="">En una paella con aceite de oliva virgen extra, sofreímos el pimiento rojo cortado en tiras y el ajo picado. Retiramos y reservamos para mantener la textura crujiente.</p>
+</div>
+</div>
+<!-- Step 2 -->
+<div class="flex gap-8 group">
+<div class="flex-shrink-0">
+<div class="w-16 h-16 rounded-full bg-secondary text-white flex items-center justify-center text-3xl font-black italic shadow-lg group-hover:rotate-12 transition-transform" style="">02</div>
+</div>
+<div class="pt-2">
+<h4 class="text-2xl font-bold text-on-surface mb-3" style="">Marcar el marisco</h4>
+<p class="text-[1.6rem] leading-relaxed text-on-surface-variant" style="">Doramos los gambones y la sepia troceada en el mismo aceite para que suelte todo el jugo coralino. Este es el secreto del sabor profundo de la paella.</p>
+<div class="mt-6 rounded-3xl overflow-hidden h-64 shadow-xl">
+<img alt="Cooking process" class="w-full h-full object-cover" data-alt="Close up of large prawns sizzling in a traditional flat paella pan with olive oil and golden garlic" src="https://lh3.googleusercontent.com/aida-public/AB6AXuApEp5yCON566TgJNlliyM4H8q9CiMTVXyC1zv_axIEIQJmovvcZ-gQNSmTjufE_2ugZCOrW6-DIf0v_C2bynyHVgMmelBHY1qEEgUGrRKLOcadby5P-fZFkIohYowzAC6fZzdQNzL9NmpFgcEkeKNqgUq7n69vjTOTpber0tFnWg0TKmWw9JafHaK4_RA31IcG_kjRx7epZnveDAJpOn3S4DP1XgPKbRCZmQbdkGuMhsl5us5tXOjnboGraURshZYKZu527j_YBRY" style=""/>
+</div>
+</div>
+</div>
+<!-- Step 3 -->
+<div class="flex gap-8 group">
+<div class="flex-shrink-0">
+<div class="w-16 h-16 rounded-full bg-secondary text-white flex items-center justify-center text-3xl font-black italic shadow-lg group-hover:rotate-12 transition-transform" style="">03</div>
+</div>
+<div class="pt-2">
+<h4 class="text-2xl font-bold text-on-surface mb-3" style="">El arroz y el caldo</h4>
+<p class="text-[1.6rem] leading-relaxed text-on-surface-variant" style="">Añadimos el arroz bomba y lo nacaramos durante 2 minutos. Vertemos el caldo de pescado hirviendo con las hebras de azafrán. Cocinamos a fuego fuerte los primeros 8 minutos.</p>
+</div>
+</div>
+<!-- Step 4 -->
+<div class="flex gap-8 group">
+<div class="flex-shrink-0">
+<div class="w-16 h-16 rounded-full bg-secondary text-white flex items-center justify-center text-3xl font-black italic shadow-lg group-hover:rotate-12 transition-transform" style="">04</div>
+</div>
+<div class="pt-2">
+<h4 class="text-2xl font-bold text-on-surface mb-3" style="">El reposo final</h4>
+<p class="text-[1.6rem] leading-relaxed text-on-surface-variant" style="">Bajamos el fuego y dejamos 10 minutos más. Añadimos los mejillones y el marisco reservado al final. Tapamos con un paño limpio y dejamos reposar 5 minutos antes de servir.</p>
+</div>
+</div>
+</div>
+<!-- Tips Card -->
+<div class="flex flex-wrap items-center gap-4 mt-16">
+<button class="flex-1 sm:flex-initial flex items-center justify-center gap-2 px-6 py-4 rounded-2xl border-2 border-primary/20 text-primary font-bold text-[1.4rem] hover:bg-primary/5 active:scale-95 transition-all" style="">
+<span class="material-symbols-outlined" style="">edit</span>
+    Modificar
+  </button>
+<button class="flex-1 sm:flex-initial flex items-center justify-center gap-2 px-6 py-4 rounded-2xl bg-error/10 text-error font-bold text-[1.4rem] hover:bg-error/20 active:scale-95 transition-all" style="">
+<span class="material-symbols-outlined" style="">delete</span>
+    Eliminar
+  </button>
+</div><div class="mt-20 p-8 border-2 border-dashed border-secondary/30 rounded-3xl bg-secondary-fixed/30 flex items-start gap-6">
+<span class="material-symbols-outlined text-secondary text-4xl" data-icon="lightbulb" style="">lightbulb</span>
+<div>
+<h5 class="text-2xl font-bold text-on-secondary-fixed mb-2 italic" style="">Consejo del Chef</h5>
+<p class="text-[1.4rem] text-on-secondary-fixed-variant leading-relaxed" style="">Para conseguir el famoso 'socarrat' (la capa de arroz tostado en el fondo), sube el fuego al máximo los últimos 45 segundos hasta que oigas un ligero crepitar.</p>
+</div>
+</div>
+</section>
+</div>
+</main>
+<!-- BottomNavBar -->
+<nav class="fixed bottom-0 w-full z-50 flex justify-around items-center px-4 pb-4 pt-2 bg-[#f3faff]/80 backdrop-blur-md border-t border-cyan-100 shadow-lg rounded-t-2xl">
+<a class="flex flex-col items-center justify-center px-3 py-1 hover:text-orange-500 transition-all active:scale-90 duration-200 bg-orange-100 text-orange-700 rounded-xl" href="#" style="">
+<span class="material-symbols-outlined" style='font-variation-settings: "FILL" 1;'>restaurant</span>
+<span class="font-['Plus_Jakarta_Sans'] font-medium text-[1rem]" style="">Recetas</span>
+</a>
+<a class="flex flex-col items-center justify-center text-cyan-600 px-3 py-1 hover:text-orange-500 transition-all active:scale-90 duration-200" href="#" style="">
+<span class="material-symbols-outlined" style="">calendar_today</span>
+<span class="font-['Plus_Jakarta_Sans'] font-medium text-[1rem]" style="">Planear</span>
+</a><a class="flex flex-col items-center justify-center text-cyan-600 px-3 py-1 hover:text-orange-500 transition-all active:scale-90 duration-200" href="#">
+<span class="material-symbols-outlined">shopping_cart</span>
+<span class="font-['Plus_Jakarta_Sans'] font-medium text-[1rem]">Lista</span>
+</a>
+<a class="flex flex-col items-center justify-center px-3 py-1 hover:text-orange-500 transition-all active:scale-90 duration-200 text-cyan-600" href="#" style="">
+<span class="material-symbols-outlined" style="">ac_unit</span>
+<span class="font-['Plus_Jakarta_Sans'] font-medium text-[1rem]" style="">Congelador</span>
+</a>
+</nav>
+</body></html>

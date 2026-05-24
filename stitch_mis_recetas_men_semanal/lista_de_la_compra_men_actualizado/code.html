@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+
+<html lang="es"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Lista de la Compra - Editorial Culinario</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;family=Manrope:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "inverse-on-surface": "#dff4ff",
+                        "tertiary-fixed-dim": "#ffb59e",
+                        "on-surface-variant": "#3e4946",
+                        "outline": "#6e7976",
+                        "inverse-surface": "#1e333c",
+                        "surface": "#f3faff",
+                        "surface-container-low": "#e6f6ff",
+                        "on-background": "#071e27",
+                        "tertiary-fixed": "#ffdbd0",
+                        "tertiary-container": "#8c4b37",
+                        "primary-container": "#00695c",
+                        "on-secondary-fixed-variant": "#802a00",
+                        "on-tertiary": "#ffffff",
+                        "error": "#ba1a1a",
+                        "tertiary": "#6f3522",
+                        "error-container": "#ffdad6",
+                        "secondary-fixed-dim": "#ffb59a",
+                        "outline-variant": "#bec9c5",
+                        "surface-dim": "#c7dde9",
+                        "on-secondary": "#ffffff",
+                        "primary-fixed": "#a0f2e1",
+                        "on-primary-fixed": "#00201b",
+                        "surface-container-high": "#d5ecf8",
+                        "surface-container": "#dbf1fe",
+                        "on-tertiary-fixed": "#390c01",
+                        "on-error": "#ffffff",
+                        "surface-bright": "#f3faff",
+                        "on-error-container": "#93000a",
+                        "on-primary": "#ffffff",
+                        "surface-variant": "#cfe6f2",
+                        "surface-container-lowest": "#ffffff",
+                        "on-surface": "#071e27",
+                        "primary": "#004f45",
+                        "on-secondary-container": "#531800",
+                        "secondary-fixed": "#ffdbcf",
+                        "on-primary-fixed-variant": "#005046",
+                        "secondary-container": "#fc6018",
+                        "surface-tint": "#046b5e",
+                        "primary-fixed-dim": "#84d5c5",
+                        "on-tertiary-fixed-variant": "#713623",
+                        "on-primary-container": "#94e5d5",
+                        "inverse-primary": "#84d5c5",
+                        "surface-container-highest": "#cfe6f2",
+                        "on-tertiary-container": "#ffcabb",
+                        "background": "#f3faff",
+                        "secondary": "#a83900",
+                        "on-secondary-fixed": "#380d00"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "fontFamily": {
+                        "headline": ["Plus Jakarta Sans"],
+                        "display": ["Plus Jakarta Sans"],
+                        "body": ["Manrope"],
+                        "label": ["Manrope"]
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-background text-on-background font-body min-h-screen pb-24 md:pb-0 pt-16">
+<!-- TopAppBar -->
+<header class="fixed top-0 w-full z-50 bg-white border-b border-slate-200 flex justify-between items-center px-4 py-3 shadow-sm md:hidden">
+<button class="text-teal-800 transition-colors duration-200 cursor-pointer hover:bg-slate-100 p-2 rounded-full flex items-center justify-center">
+<span class="material-symbols-outlined" style='font-variation-settings: "FILL" 0;'>restaurant_menu</span>
+</button>
+<h1 class="font-['Plus_Jakarta_Sans'] font-extrabold text-lg text-teal-800 tracking-tight">Vamos al super!!</h1>
+<button class="text-teal-800 transition-colors duration-200 cursor-pointer hover:bg-slate-100 p-2 rounded-full flex items-center justify-center">
+<span class="material-symbols-outlined" style='font-variation-settings: "FILL" 0;'>shopping_cart</span>
+</button>
+</header>
+<!-- Main Desktop Nav -->
+<nav class="hidden md:flex fixed top-0 w-full z-50 bg-white border-b border-slate-200 px-6 py-4 items-center justify-between shadow-sm">
+<div class="flex items-center gap-4">
+<span class="material-symbols-outlined text-primary-container text-2xl" style='font-variation-settings: "FILL" 1;'>restaurant_menu</span>
+<h1 class="font-headline font-extrabold text-xl text-primary-container tracking-tight">Editorial Culinario</h1>
+</div>
+<div class="flex items-center gap-8 font-label font-medium">
+<a class="flex items-center gap-2 text-slate-500 hover:bg-slate-100 px-4 py-2 rounded-lg transition-colors" href="#">
+<span class="material-symbols-outlined">menu_book</span>
+                 Recetas
+             </a>
+<a class="flex items-center gap-2 bg-teal-50 text-teal-700 px-4 py-2 rounded-lg transition-colors" href="#">
+<span class="material-symbols-outlined">calendar_month</span>
+                 Planear
+             </a>
+<a class="flex items-center gap-2 text-slate-500 hover:bg-slate-100 px-4 py-2 rounded-lg transition-colors" href="#">
+<span class="material-symbols-outlined">ac_unit</span>
+                 Congelador
+             </a>
+</div>
+<div>
+<button class="text-primary-container hover:bg-slate-100 p-2 rounded-full transition-colors">
+<span class="material-symbols-outlined">shopping_cart</span>
+</button>
+</div>
+</nav>
+<!-- Main Content -->
+<main class="max-w-4xl mx-auto px-4 py-6 md:py-10 md:mt-16">
+<div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
+<div>
+<h2 class="font-headline font-bold text-3xl text-on-background mb-2">Lista de la Compra</h2>
+<p class="text-on-surface-variant text-sm font-label">Para tus planes semanales</p>
+</div>
+<button class="bg-surface-variant text-on-surface-variant hover:bg-surface-dim px-4 py-2 rounded-lg font-label font-medium transition-colors text-sm flex items-center gap-2">
+<span class="material-symbols-outlined text-sm">cleaning_services</span>
+                Limpiar comprados
+            </button>
+</div>
+<!-- Add Item Input -->
+<div class="bg-surface-container rounded-xl p-4 mb-8 shadow-sm border border-outline-variant flex gap-3 items-center">
+<span class="material-symbols-outlined text-outline">add_circle</span>
+<input class="flex-1 bg-transparent border-none focus:ring-0 text-on-background placeholder-outline font-body text-base w-full" placeholder="Añadir artículo a la lista..." type="text"/>
+<button class="bg-primary text-on-primary hover:bg-primary-container px-4 py-2 rounded-lg font-label font-medium transition-colors text-sm whitespace-nowrap">
+                Añadir
+            </button>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+<!-- Category 1 -->
+<div class="bg-white rounded-xl shadow-sm border border-outline-variant overflow-hidden flex flex-col">
+<div class="bg-surface-container-low px-4 py-3 border-b border-outline-variant flex items-center gap-2">
+<span class="material-symbols-outlined text-primary-container" style='font-variation-settings: "FILL" 1;'>nutrition</span>
+<h3 class="font-headline font-semibold text-on-background">Frutas y Verduras</h3>
+</div>
+<div class="p-4 flex flex-col gap-3">
+<!-- Item -->
+<label class="flex items-center gap-3 cursor-pointer group">
+<input class="w-5 h-5 rounded border-outline text-secondary focus:ring-secondary/50 transition-colors" type="checkbox"/>
+<span class="font-body text-on-background group-hover:text-primary transition-colors">Tomates pera (1kg)</span>
+</label>
+<!-- Item -->
+<label class="flex items-center gap-3 cursor-pointer group">
+<input class="w-5 h-5 rounded border-outline text-secondary focus:ring-secondary/50 transition-colors" type="checkbox"/>
+<span class="font-body text-on-background group-hover:text-primary transition-colors">Cebollas (500g)</span>
+</label>
+<!-- Item Checked -->
+<label class="flex items-center gap-3 cursor-pointer group opacity-60">
+<input checked="" class="w-5 h-5 rounded border-outline text-secondary focus:ring-secondary/50 transition-colors" type="checkbox"/>
+<span class="font-body text-on-background line-through">Ajos (1 cabeza)</span>
+</label>
+</div>
+</div>
+<!-- Category 2 -->
+<div class="bg-white rounded-xl shadow-sm border border-outline-variant overflow-hidden flex flex-col">
+<div class="bg-surface-container-low px-4 py-3 border-b border-outline-variant flex items-center gap-2">
+<span class="material-symbols-outlined text-primary-container" style='font-variation-settings: "FILL" 1;'>set_meal</span>
+<h3 class="font-headline font-semibold text-on-background">Carnes y Pescados</h3>
+</div>
+<div class="p-4 flex flex-col gap-3">
+<!-- Item -->
+<label class="flex items-center gap-3 cursor-pointer group">
+<input class="w-5 h-5 rounded border-outline text-secondary focus:ring-secondary/50 transition-colors" type="checkbox"/>
+<span class="font-body text-on-background group-hover:text-primary transition-colors">Pechuga de pollo (600g)</span>
+</label>
+<!-- Item -->
+<label class="flex items-center gap-3 cursor-pointer group">
+<input class="w-5 h-5 rounded border-outline text-secondary focus:ring-secondary/50 transition-colors" type="checkbox"/>
+<span class="font-body text-on-background group-hover:text-primary transition-colors">Salmón fresco (2 lomos)</span>
+</label>
+</div>
+<!-- Decorative banner -->
+</div>
+<!-- Category 3 -->
+<div class="bg-white rounded-xl shadow-sm border border-outline-variant overflow-hidden flex flex-col">
+<div class="bg-surface-container-low px-4 py-3 border-b border-outline-variant flex items-center gap-2">
+<span class="material-symbols-outlined text-primary-container" style='font-variation-settings: "FILL" 1;'>kitchen</span>
+<h3 class="font-headline font-semibold text-on-background">Despensa</h3>
+</div>
+<div class="p-4 flex flex-col gap-3">
+<!-- Item -->
+<label class="flex items-center gap-3 cursor-pointer group">
+<input class="w-5 h-5 rounded border-outline text-secondary focus:ring-secondary/50 transition-colors" type="checkbox"/>
+<span class="font-body text-on-background group-hover:text-primary transition-colors">Arroz Bomba (1kg)</span>
+</label>
+<!-- Item Checked -->
+<label class="flex items-center gap-3 cursor-pointer group opacity-60">
+<input checked="" class="w-5 h-5 rounded border-outline text-secondary focus:ring-secondary/50 transition-colors" type="checkbox"/>
+<span class="font-body text-on-background line-through">Aceite de Oliva Virgen Extra</span>
+</label>
+</div>
+</div>
+<!-- Category 4 (Recipe Based) -->
+<div class="bg-surface-container rounded-xl shadow-sm border border-secondary-fixed-dim overflow-hidden flex flex-col relative">
+<div class="absolute top-0 right-0 bg-secondary text-white text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-bl-lg z-10">
+                    Receta
+                </div>
+<div class="bg-secondary-fixed/30 px-4 py-3 border-b border-secondary-fixed-dim flex items-center gap-2">
+<span class="material-symbols-outlined text-secondary-container" style='font-variation-settings: "FILL" 1;'>receipt_long</span>
+<h3 class="font-headline font-semibold text-on-background">Ingredientes para Paella</h3>
+</div>
+<div class="p-4 flex flex-col gap-3">
+<!-- Item -->
+<label class="flex items-center gap-3 cursor-pointer group">
+<input class="w-5 h-5 rounded border-secondary text-secondary focus:ring-secondary/50 transition-colors" type="checkbox"/>
+<span class="font-body text-on-background group-hover:text-secondary transition-colors">Caldo de pescado (1L)</span>
+</label>
+<!-- Item -->
+<label class="flex items-center gap-3 cursor-pointer group">
+<input class="w-5 h-5 rounded border-secondary text-secondary focus:ring-secondary/50 transition-colors" type="checkbox"/>
+<span class="font-body text-on-background group-hover:text-secondary transition-colors">Pimentón dulce</span>
+</label>
+</div>
+</div>
+</div>
+<!-- Decorative bottom image -->
+</main>
+<!-- BottomNavBar -->
+<nav class="fixed bottom-0 left-0 w-full flex justify-around items-center bg-white dark:bg-slate-900 px-2 py-3 pb-safe z-50 rounded-t-lg shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] md:hidden">
+<a class="flex flex-col items-center justify-center text-slate-500 dark:text-slate-400 p-2 hover:text-orange-600 dark:hover:text-orange-400 active:scale-95 transition-transform duration-150 font-['Manrope'] font-medium text-[12px]" href="#">
+<span class="material-symbols-outlined mb-1">menu_book</span>
+            Recetas
+        </a>
+<a class="flex flex-col items-center justify-center rounded-xl hover:text-orange-600 dark:hover:text-orange-400 active:scale-95 transition-transform duration-150 font-['Manrope'] font-medium text-[12px] text-slate-500 dark:text-slate-400" href="#">
+<span class="material-symbols-outlined mb-1" style='font-variation-settings: "FILL" 0;'>calendar_month</span>
+            Planear
+        </a><a class="flex flex-col items-center justify-center bg-teal-50 dark:bg-teal-900/30 text-teal-700 dark:text-teal-300 rounded-xl px-4 py-1.5 hover:text-orange-600 dark:hover:text-orange-400 active:scale-95 transition-transform duration-150 font-['Manrope'] font-medium text-[12px]" href="#">
+<span class="material-symbols-outlined mb-1" style='font-variation-settings: "FILL" 1;'>shopping_cart</span>
+            Lista
+        </a>
+<a class="flex flex-col items-center justify-center text-slate-500 dark:text-slate-400 p-2 hover:text-orange-600 dark:hover:text-orange-400 active:scale-95 transition-transform duration-150 font-['Manrope'] font-medium text-[12px]" href="#">
+<span class="material-symbols-outlined mb-1">ac_unit</span>
+            Congelador
+        </a>
+</nav>
+</body></html>

@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+
+<html class="light" lang="es"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Editorial Culinario - Mis Recetas</title>
+<!-- Google Fonts -->
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;700;800&amp;family=Manrope:wght@400;500;700&amp;display=swap" rel="stylesheet"/>
+<!-- Material Symbols -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind CSS -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "surface": "#f3faff",
+              "tertiary": "#672e1c",
+              "secondary-fixed": "#ffdbcf",
+              "on-secondary-container": "#531800",
+              "on-tertiary-fixed": "#390c01",
+              "tertiary-fixed": "#ffdbd0",
+              "inverse-surface": "#1e333c",
+              "on-surface": "#071e27",
+              "error-container": "#ffdad6",
+              "background": "#f3faff",
+              "tertiary-container": "#834531",
+              "secondary-fixed-dim": "#ffb59a",
+              "primary-fixed-dim": "#84d5c5",
+              "outline": "#6f7979",
+              "on-primary": "#ffffff",
+              "tertiary-fixed-dim": "#ffb59e",
+              "surface-variant": "#cfe6f2",
+              "on-secondary-fixed": "#380d00",
+              "error": "#ba1a1a",
+              "primary-fixed": "#a0f2e1",
+              "on-primary-fixed-variant": "#005046",
+              "on-tertiary": "#ffffff",
+              "primary": "#00483e",
+              "surface-tint": "#046b5e",
+              "surface-container-low": "#e6f6ff",
+              "on-secondary-fixed-variant": "#802a00",
+              "surface-bright": "#f3faff",
+              "on-error-container": "#93000a",
+              "on-surface-variant": "#3f4949",
+              "inverse-primary": "#84d5c5",
+              "surface-container-highest": "#cfe6f2",
+              "inverse-on-surface": "#dff4ff",
+              "on-tertiary-fixed-variant": "#713623",
+              "on-primary-container": "#89dbca",
+              "outline-variant": "#bec8c9",
+              "secondary-container": "#fc6018",
+              "surface-dim": "#c7dde9",
+              "surface-container": "#dbf1fe",
+              "on-background": "#071e27",
+              "on-error": "#ffffff",
+              "primary-container": "#006155",
+              "on-secondary": "#ffffff",
+              "surface-container-lowest": "#ffffff",
+              "surface-container-high": "#d5ecf8",
+              "on-primary-fixed": "#00201b",
+              "secondary": "#a83900"
+            },
+            fontFamily: {
+              "headline": ["Plus Jakarta Sans"],
+              "body": ["Manrope"],
+              "label": ["Manrope"]
+            },
+            borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+          },
+        },
+      }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        body { font-size: 10px; } /* Base font size as requested */
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+<style>*, ::before, ::after{--tw-border-spacing-x:0;--tw-border-spacing-y:0;--tw-translate-x:0;--tw-translate-y:0;--tw-rotate:0;--tw-skew-x:0;--tw-skew-y:0;--tw-scale-x:1;--tw-scale-y:1;--tw-pan-x: ;--tw-pan-y: ;--tw-pinch-zoom: ;--tw-scroll-snap-strictness:proximity;--tw-gradient-from-position: ;--tw-gradient-via-position: ;--tw-gradient-to-position: ;--tw-ordinal: ;--tw-slashed-zero: ;--tw-numeric-figure: ;--tw-numeric-spacing: ;--tw-numeric-fraction: ;--tw-ring-inset: ;--tw-ring-offset-width:0px;--tw-ring-offset-color:#fff;--tw-ring-color:rgb(59 130 246 / 0.5);--tw-ring-offset-shadow:0 0 #0000;--tw-ring-shadow:0 0 #0000;--tw-shadow:0 0 #0000;--tw-shadow-colored:0 0 #0000;--tw-blur: ;--tw-brightness: ;--tw-contrast: ;--tw-grayscale: ;--tw-hue-rotate: ;--tw-invert: ;--tw-saturate: ;--tw-sepia: ;--tw-drop-shadow: ;--tw-backdrop-blur: ;--tw-backdrop-brightness: ;--tw-backdrop-contrast: ;--tw-backdrop-grayscale: ;--tw-backdrop-hue-rotate: ;--tw-backdrop-invert: ;--tw-backdrop-opacity: ;--tw-backdrop-saturate: ;--tw-backdrop-sepia: ;--tw-contain-size: ;--tw-contain-layout: ;--tw-contain-paint: ;--tw-contain-style: }::backdrop{--tw-border-spacing-x:0;--tw-border-spacing-y:0;--tw-translate-x:0;--tw-translate-y:0;--tw-rotate:0;--tw-skew-x:0;--tw-skew-y:0;--tw-scale-x:1;--tw-scale-y:1;--tw-pan-x: ;--tw-pan-y: ;--tw-pinch-zoom: ;--tw-scroll-snap-strictness:proximity;--tw-gradient-from-position: ;--tw-gradient-via-position: ;--tw-gradient-to-position: ;--tw-ordinal: ;--tw-slashed-zero: ;--tw-numeric-figure: ;--tw-numeric-spacing: ;--tw-numeric-fraction: ;--tw-ring-inset: ;--tw-ring-offset-width:0px;--tw-ring-offset-color:#fff;--tw-ring-color:rgb(59 130 246 / 0.5);--tw-ring-offset-shadow:0 0 #0000;--tw-ring-shadow:0 0 #0000;--tw-shadow:0 0 #0000;--tw-shadow-colored:0 0 #0000;--tw-blur: ;--tw-brightness: ;--tw-contrast: ;--tw-grayscale: ;--tw-hue-rotate: ;--tw-invert: ;--tw-saturate: ;--tw-sepia: ;--tw-drop-shadow: ;--tw-backdrop-blur: ;--tw-backdrop-brightness: ;--tw-backdrop-contrast: ;--tw-backdrop-grayscale: ;--tw-backdrop-hue-rotate: ;--tw-backdrop-invert: ;--tw-backdrop-opacity: ;--tw-backdrop-saturate: ;--tw-backdrop-sepia: ;--tw-contain-size: ;--tw-contain-layout: ;--tw-contain-paint: ;--tw-contain-style: }/* ! tailwindcss v3.4.17 | MIT License | https://tailwindcss.com */*,::after,::before{box-sizing:border-box;border-width:0;border-style:solid;border-color:#e5e7eb}::after,::before{--tw-content:''}:host,html{line-height:1.5;-webkit-text-size-adjust:100%;-moz-tab-size:4;tab-size:4;font-family:ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";font-feature-settings:normal;font-variation-settings:normal;-webkit-tap-highlight-color:transparent}body{margin:0;line-height:inherit}hr{height:0;color:inherit;border-top-width:1px}abbr:where([title]){-webkit-text-decoration:underline dotted;text-decoration:underline dotted}h1,h2,h3,h4,h5,h6{font-size:inherit;font-weight:inherit}a{color:inherit;text-decoration:inherit}b,strong{font-weight:bolder}code,kbd,pre,samp{font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;font-feature-settings:normal;font-variation-settings:normal;font-size:1em}small{font-size:80%}sub,sup{font-size:75%;line-height:0;position:relative;vertical-align:baseline}sub{bottom:-.25em}sup{top:-.5em}table{text-indent:0;border-color:inherit;border-collapse:collapse}button,input,optgroup,select,textarea{font-family:inherit;font-feature-settings:inherit;font-variation-settings:inherit;font-size:100%;font-weight:inherit;line-height:inherit;letter-spacing:inherit;color:inherit;margin:0;padding:0}button,select{text-transform:none}button,input:where([type=button]),input:where([type=reset]),input:where([type=submit]){-webkit-appearance:button;background-color:transparent;background-image:none}:-moz-focusring{outline:auto}:-moz-ui-invalid{box-shadow:none}progress{vertical-align:baseline}::-webkit-inner-spin-button,::-webkit-outer-spin-button{height:auto}[type=search]{-webkit-appearance:textfield;outline-offset:-2px}::-webkit-search-decoration{-webkit-appearance:none}::-webkit-file-upload-button{-webkit-appearance:button;font:inherit}summary{display:list-item}blockquote,dd,dl,figure,h1,h2,h3,h4,h5,h6,hr,p,pre{margin:0}fieldset{margin:0;padding:0}legend{padding:0}menu,ol,ul{list-style:none;margin:0;padding:0}dialog{padding:0}textarea{resize:vertical}input::placeholder,textarea::placeholder{opacity:1;color:#9ca3af}[role=button],button{cursor:pointer}:disabled{cursor:default}audio,canvas,embed,iframe,img,object,svg,video{display:block;vertical-align:middle}img,video{max-width:100%;height:auto}[hidden]:where(:not([hidden=until-found])){display:none}[type='text'],input:where(:not([type])),[type='email'],[type='url'],[type='password'],[type='number'],[type='date'],[type='datetime-local'],[type='month'],[type='search'],[type='tel'],[type='time'],[type='week'],[multiple],textarea,select{-webkit-appearance:none;appearance:none;background-color:#fff;border-color:#6b7280;border-width:1px;border-radius:0px;padding-top:0.5rem;padding-right:0.75rem;padding-bottom:0.5rem;padding-left:0.75rem;font-size:1rem;line-height:1.5rem;--tw-shadow:0 0 #0000;}[type='text']:focus, input:where(:not([type])):focus, [type='email']:focus, [type='url']:focus, [type='password']:focus, [type='number']:focus, [type='date']:focus, [type='datetime-local']:focus, [type='month']:focus, [type='search']:focus, [type='tel']:focus, [type='time']:focus, [type='week']:focus, [multiple]:focus, textarea:focus, select:focus{outline:2px solid transparent;outline-offset:2px;--tw-ring-inset:var(--tw-empty,/*!*/ /*!*/);--tw-ring-offset-width:0px;--tw-ring-offset-color:#fff;--tw-ring-color:#2563eb;--tw-ring-offset-shadow:var(--tw-ring-inset) 0 0 0 var(--tw-ring-offset-width) var(--tw-ring-offset-color);--tw-ring-shadow:var(--tw-ring-inset) 0 0 0 calc(1px + var(--tw-ring-offset-width)) var(--tw-ring-color);box-shadow:var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);border-color:#2563eb}input::placeholder,textarea::placeholder{color:#6b7280;opacity:1}::-webkit-datetime-edit-fields-wrapper{padding:0}::-webkit-date-and-time-value{min-height:1.5em;text-align:inherit}::-webkit-datetime-edit{display:inline-flex}::-webkit-datetime-edit,::-webkit-datetime-edit-year-field,::-webkit-datetime-edit-month-field,::-webkit-datetime-edit-day-field,::-webkit-datetime-edit-hour-field,::-webkit-datetime-edit-minute-field,::-webkit-datetime-edit-second-field,::-webkit-datetime-edit-millisecond-field,::-webkit-datetime-edit-meridiem-field{padding-top:0;padding-bottom:0}select{background-image:url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");background-position:right 0.5rem center;background-repeat:no-repeat;background-size:1.5em 1.5em;padding-right:2.5rem;print-color-adjust:exact}[multiple],[size]:where(select:not([size="1"])){background-image:initial;background-position:initial;background-repeat:unset;background-size:initial;padding-right:0.75rem;print-color-adjust:unset}[type='checkbox'],[type='radio']{-webkit-appearance:none;appearance:none;padding:0;print-color-adjust:exact;display:inline-block;vertical-align:middle;background-origin:border-box;-webkit-user-select:none;user-select:none;flex-shrink:0;height:1rem;width:1rem;color:#2563eb;background-color:#fff;border-color:#6b7280;border-width:1px;--tw-shadow:0 0 #0000}[type='checkbox']{border-radius:0px}[type='radio']{border-radius:100%}[type='checkbox']:focus,[type='radio']:focus{outline:2px solid transparent;outline-offset:2px;--tw-ring-inset:var(--tw-empty,/*!*/ /*!*/);--tw-ring-offset-width:2px;--tw-ring-offset-color:#fff;--tw-ring-color:#2563eb;--tw-ring-offset-shadow:var(--tw-ring-inset) 0 0 0 var(--tw-ring-offset-width) var(--tw-ring-offset-color);--tw-ring-shadow:var(--tw-ring-inset) 0 0 0 calc(2px + var(--tw-ring-offset-width)) var(--tw-ring-color);box-shadow:var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow)}[type='checkbox']:checked,[type='radio']:checked{border-color:transparent;background-color:currentColor;background-size:100% 100%;background-position:center;background-repeat:no-repeat}[type='checkbox']:checked{background-image:url("data:image/svg+xml,%3csvg viewBox='0 0 16 16' fill='white' xmlns='http://www.w3.org/2000/svg'%3e%3cpath d='M12.207 4.793a1 1 0 010 1.414l-5 5a1 1 0 01-1.414 0l-2-2a1 1 0 011.414-1.414L6.5 9.086l4.293-4.293a1 1 0 011.414 0z'/%3e%3c/svg%3e");}@media (forced-colors: active) {[type='checkbox']:checked{-webkit-appearance:auto;appearance:auto}}[type='radio']:checked{background-image:url("data:image/svg+xml,%3csvg viewBox='0 0 16 16' fill='white' xmlns='http://www.w3.org/2000/svg'%3e%3ccircle cx='8' cy='8' r='3'/%3e%3c/svg%3e");}@media (forced-colors: active) {[type='radio']:checked{-webkit-appearance:auto;appearance:auto}}[type='checkbox']:checked:hover,[type='checkbox']:checked:focus,[type='radio']:checked:hover,[type='radio']:checked:focus{border-color:transparent;background-color:currentColor}[type='checkbox']:indeterminate{background-image:url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 16 16'%3e%3cpath stroke='white' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M4 8h8'/%3e%3c/svg%3e");border-color:transparent;background-color:currentColor;background-size:100% 100%;background-position:center;background-repeat:no-repeat;}@media (forced-colors: active) {[type='checkbox']:indeterminate{-webkit-appearance:auto;appearance:auto}}[type='checkbox']:indeterminate:hover,[type='checkbox']:indeterminate:focus{border-color:transparent;background-color:currentColor}[type='file']{background:unset;border-color:inherit;border-width:0;border-radius:0;padding:0;font-size:unset;line-height:inherit}[type='file']:focus{outline:1px solid ButtonText;outline:1px auto -webkit-focus-ring-color}.pointer-events-none{pointer-events:none}.fixed{position:fixed}.absolute{position:absolute}.relative{position:relative}.sticky{position:sticky}.inset-0{inset:0px}.inset-y-0{top:0px;bottom:0px}.bottom-0{bottom:0px}.bottom-24{bottom:6rem}.left-0{left:0px}.left-5{left:1.25rem}.right-4{right:1rem}.right-6{right:1.5rem}.top-0{top:0px}.top-4{top:1rem}.z-50{z-index:50}.z-\[60\]{z-index:60}.-mx-2{margin-left:-0.5rem;margin-right:-0.5rem}.mx-auto{margin-left:auto;margin-right:auto}.mb-12{margin-bottom:3rem}.mb-2{margin-bottom:0.5rem}.mb-3{margin-bottom:0.75rem}.mb-4{margin-bottom:1rem}.mb-6{margin-bottom:1.5rem}.mt-2{margin-top:0.5rem}.line-clamp-2{overflow:hidden;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2}.flex{display:flex}.grid{display:grid}.hidden{display:none}.h-1\/2{height:50%}.h-10{height:2.5rem}.h-14{height:3.5rem}.h-full{height:100%}.w-1\/3{width:33.333333%}.w-10{width:2.5rem}.w-14{width:3.5rem}.w-2\/3{width:66.666667%}.w-20{width:5rem}.w-full{width:100%}.max-w-2xl{max-width:42rem}.max-w-7xl{max-width:80rem}.max-w-lg{max-width:32rem}.flex-1{flex:1 1 0%}.flex-shrink-0{flex-shrink:0}.snap-x{scroll-snap-type:x var(--tw-scroll-snap-strictness)}.snap-mandatory{--tw-scroll-snap-strictness:mandatory}.snap-start{scroll-snap-align:start}.auto-rows-\[280px\]{grid-auto-rows:280px}.grid-cols-1{grid-template-columns:repeat(1, minmax(0, 1fr))}.flex-col{flex-direction:column}.flex-wrap{flex-wrap:wrap}.items-center{align-items:center}.items-stretch{align-items:stretch}.justify-center{justify-content:center}.justify-between{justify-content:space-between}.justify-around{justify-content:space-around}.gap-1{gap:0.25rem}.gap-2{gap:0.5rem}.gap-4{gap:1rem}.gap-6{gap:1.5rem}.gap-8{gap:2rem}.overflow-hidden{overflow:hidden}.overflow-x-auto{overflow-x:auto}.rounded-2xl{border-radius:1rem}.rounded-3xl{border-radius:1.5rem}.rounded-full{border-radius:9999px}.rounded-xl{border-radius:0.75rem}.rounded-t-2xl{border-top-left-radius:1rem;border-top-right-radius:1rem}.border{border-width:1px}.border-2{border-width:2px}.border-t{border-top-width:1px}.border-none{border-style:none}.border-cyan-100{--tw-border-opacity:1;border-color:rgb(207 250 254 / var(--tw-border-opacity, 1))}.border-primary-fixed{--tw-border-opacity:1;border-color:rgb(160 242 225 / var(--tw-border-opacity, 1))}.border-transparent{border-color:transparent}.bg-\[\#f3faff\]\/80{background-color:rgb(243 250 255 / 0.8)}.bg-background{--tw-bg-opacity:1;background-color:rgb(243 250 255 / var(--tw-bg-opacity, 1))}.bg-cyan-100\/50{background-color:rgb(207 250 254 / 0.5)}.bg-cyan-50\/80{background-color:rgb(236 254 255 / 0.8)}.bg-orange-100{--tw-bg-opacity:1;background-color:rgb(255 237 213 / var(--tw-bg-opacity, 1))}.bg-primary-container{--tw-bg-opacity:1;background-color:rgb(0 97 85 / var(--tw-bg-opacity, 1))}.bg-secondary{--tw-bg-opacity:1;background-color:rgb(168 57 0 / var(--tw-bg-opacity, 1))}.bg-secondary-fixed{--tw-bg-opacity:1;background-color:rgb(255 219 207 / var(--tw-bg-opacity, 1))}.bg-surface-container-highest{--tw-bg-opacity:1;background-color:rgb(207 230 242 / var(--tw-bg-opacity, 1))}.bg-surface-container-low{--tw-bg-opacity:1;background-color:rgb(230 246 255 / var(--tw-bg-opacity, 1))}.bg-white{--tw-bg-opacity:1;background-color:rgb(255 255 255 / var(--tw-bg-opacity, 1))}.bg-white\/20{background-color:rgb(255 255 255 / 0.2)}.bg-white\/30{background-color:rgb(255 255 255 / 0.3)}.bg-gradient-to-t{background-image:linear-gradient(to top, var(--tw-gradient-stops))}.from-primary\/90{--tw-gradient-from:rgb(0 72 62 / 0.9) var(--tw-gradient-from-position);--tw-gradient-to:rgb(0 72 62 / 0) var(--tw-gradient-to-position);--tw-gradient-stops:var(--tw-gradient-from), var(--tw-gradient-to)}.via-transparent{--tw-gradient-to:rgb(0 0 0 / 0)  var(--tw-gradient-to-position);--tw-gradient-stops:var(--tw-gradient-from), transparent var(--tw-gradient-via-position), var(--tw-gradient-to)}.to-transparent{--tw-gradient-to:transparent var(--tw-gradient-to-position)}.object-cover{object-fit:cover}.p-5{padding:1.25rem}.p-8{padding:2rem}.px-2{padding-left:0.5rem;padding-right:0.5rem}.px-3{padding-left:0.75rem;padding-right:0.75rem}.px-4{padding-left:1rem;padding-right:1rem}.px-6{padding-left:1.5rem;padding-right:1.5rem}.py-1{padding-top:0.25rem;padding-bottom:0.25rem}.py-4{padding-top:1rem;padding-bottom:1rem}.py-5{padding-top:1.25rem;padding-bottom:1.25rem}.pb-32{padding-bottom:8rem}.pb-4{padding-bottom:1rem}.pl-14{padding-left:3.5rem}.pr-6{padding-right:1.5rem}.pt-2{padding-top:0.5rem}.pt-8{padding-top:2rem}.font-\[\'Plus_Jakarta_Sans\'\]{font-family:'Plus Jakarta Sans'}.font-body{font-family:Manrope}.font-headline{font-family:Plus Jakarta Sans}.text-2xl{font-size:1.5rem;line-height:2rem}.text-3xl{font-size:1.875rem;line-height:2.25rem}.text-4xl{font-size:2.25rem;line-height:2.5rem}.text-\[0\.625rem\]{font-size:0.625rem}.text-\[10px\]{font-size:10px}.text-\[11px\]{font-size:11px}.text-\[12px\]{font-size:12px}.text-lg{font-size:1.125rem;line-height:1.75rem}.text-sm{font-size:0.875rem;line-height:1.25rem}.text-xl{font-size:1.25rem;line-height:1.75rem}.text-xs{font-size:0.75rem;line-height:1rem}.font-black{font-weight:900}.font-bold{font-weight:700}.font-extrabold{font-weight:800}.font-medium{font-weight:500}.uppercase{text-transform:uppercase}.italic{font-style:italic}.leading-tight{line-height:1.25}.tracking-tight{letter-spacing:-0.025em}.tracking-tighter{letter-spacing:-0.05em}.tracking-wide{letter-spacing:0.025em}.tracking-widest{letter-spacing:0.1em}.text-cyan-600{--tw-text-opacity:1;color:rgb(8 145 178 / var(--tw-text-opacity, 1))}.text-cyan-700{--tw-text-opacity:1;color:rgb(14 116 144 / var(--tw-text-opacity, 1))}.text-cyan-800{--tw-text-opacity:1;color:rgb(21 94 117 / var(--tw-text-opacity, 1))}.text-cyan-900{--tw-text-opacity:1;color:rgb(22 78 99 / var(--tw-text-opacity, 1))}.text-on-background{--tw-text-opacity:1;color:rgb(7 30 39 / var(--tw-text-opacity, 1))}.text-on-secondary-container{--tw-text-opacity:1;color:rgb(83 24 0 / var(--tw-text-opacity, 1))}.text-on-secondary-fixed-variant{--tw-text-opacity:1;color:rgb(128 42 0 / var(--tw-text-opacity, 1))}.text-on-surface{--tw-text-opacity:1;color:rgb(7 30 39 / var(--tw-text-opacity, 1))}.text-on-surface-variant{--tw-text-opacity:1;color:rgb(63 73 73 / var(--tw-text-opacity, 1))}.text-orange-400{--tw-text-opacity:1;color:rgb(251 146 60 / var(--tw-text-opacity, 1))}.text-orange-600{--tw-text-opacity:1;color:rgb(234 88 12 / var(--tw-text-opacity, 1))}.text-orange-700{--tw-text-opacity:1;color:rgb(194 65 12 / var(--tw-text-opacity, 1))}.text-primary{--tw-text-opacity:1;color:rgb(0 72 62 / var(--tw-text-opacity, 1))}.text-secondary{--tw-text-opacity:1;color:rgb(168 57 0 / var(--tw-text-opacity, 1))}.text-white{--tw-text-opacity:1;color:rgb(255 255 255 / var(--tw-text-opacity, 1))}.text-white\/80{color:rgb(255 255 255 / 0.8)}.opacity-80{opacity:0.8}.shadow-lg{--tw-shadow:0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);--tw-shadow-colored:0 10px 15px -3px var(--tw-shadow-color), 0 4px 6px -4px var(--tw-shadow-color);box-shadow:var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow)}.shadow-md{--tw-shadow:0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);--tw-shadow-colored:0 4px 6px -1px var(--tw-shadow-color), 0 2px 4px -2px var(--tw-shadow-color);box-shadow:var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow)}.shadow-sm{--tw-shadow:0 1px 2px 0 rgb(0 0 0 / 0.05);--tw-shadow-colored:0 1px 2px 0 var(--tw-shadow-color);box-shadow:var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow)}.ring-2{--tw-ring-offset-shadow:var(--tw-ring-inset) 0 0 0 var(--tw-ring-offset-width) var(--tw-ring-offset-color);--tw-ring-shadow:var(--tw-ring-inset) 0 0 0 calc(2px + var(--tw-ring-offset-width)) var(--tw-ring-color);box-shadow:var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow, 0 0 #0000)}.ring-primary-container\/20{--tw-ring-color:rgb(0 97 85 / 0.2)}.backdrop-blur-md{--tw-backdrop-blur:blur(12px);-webkit-backdrop-filter:var(--tw-backdrop-blur) var(--tw-backdrop-brightness) var(--tw-backdrop-contrast) var(--tw-backdrop-grayscale) var(--tw-backdrop-hue-rotate) var(--tw-backdrop-invert) var(--tw-backdrop-opacity) var(--tw-backdrop-saturate) var(--tw-backdrop-sepia);backdrop-filter:var(--tw-backdrop-blur) var(--tw-backdrop-brightness) var(--tw-backdrop-contrast) var(--tw-backdrop-grayscale) var(--tw-backdrop-hue-rotate) var(--tw-backdrop-invert) var(--tw-backdrop-opacity) var(--tw-backdrop-saturate) var(--tw-backdrop-sepia)}.transition-all{transition-property:all;transition-timing-function:cubic-bezier(0.4, 0, 0.2, 1);transition-duration:150ms}.transition-colors{transition-property:color, background-color, border-color, fill, stroke, -webkit-text-decoration-color;transition-property:color, background-color, border-color, text-decoration-color, fill, stroke;transition-property:color, background-color, border-color, text-decoration-color, fill, stroke, -webkit-text-decoration-color;transition-timing-function:cubic-bezier(0.4, 0, 0.2, 1);transition-duration:150ms}.transition-transform{transition-property:transform;transition-timing-function:cubic-bezier(0.4, 0, 0.2, 1);transition-duration:150ms}.duration-200{transition-duration:200ms}.duration-500{transition-duration:500ms}.duration-700{transition-duration:700ms}.selection\:bg-secondary-fixed *::selection{--tw-bg-opacity:1;background-color:rgb(255 219 207 / var(--tw-bg-opacity, 1))}.selection\:bg-secondary-fixed::selection{--tw-bg-opacity:1;background-color:rgb(255 219 207 / var(--tw-bg-opacity, 1))}.placeholder\:text-outline\/60::placeholder{color:rgb(111 121 121 / 0.6)}.hover\:scale-110:hover{--tw-scale-x:1.1;--tw-scale-y:1.1;transform:translate(var(--tw-translate-x), var(--tw-translate-y)) rotate(var(--tw-rotate)) skewX(var(--tw-skew-x)) skewY(var(--tw-skew-y)) scaleX(var(--tw-scale-x)) scaleY(var(--tw-scale-y))}.hover\:bg-orange-50:hover{--tw-bg-opacity:1;background-color:rgb(255 247 237 / var(--tw-bg-opacity, 1))}.hover\:bg-secondary:hover{--tw-bg-opacity:1;background-color:rgb(168 57 0 / var(--tw-bg-opacity, 1))}.hover\:text-orange-500:hover{--tw-text-opacity:1;color:rgb(249 115 22 / var(--tw-text-opacity, 1))}.hover\:underline:hover{-webkit-text-decoration-line:underline;text-decoration-line:underline}.focus\:ring-4:focus{--tw-ring-offset-shadow:var(--tw-ring-inset) 0 0 0 var(--tw-ring-offset-width) var(--tw-ring-offset-color);--tw-ring-shadow:var(--tw-ring-inset) 0 0 0 calc(4px + var(--tw-ring-offset-width)) var(--tw-ring-color);box-shadow:var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow, 0 0 #0000)}.focus\:ring-primary-fixed-dim\/30:focus{--tw-ring-color:rgb(132 213 197 / 0.3)}.active\:scale-90:active{--tw-scale-x:.9;--tw-scale-y:.9;transform:translate(var(--tw-translate-x), var(--tw-translate-y)) rotate(var(--tw-rotate)) skewX(var(--tw-skew-x)) skewY(var(--tw-skew-y)) scaleX(var(--tw-scale-x)) scaleY(var(--tw-scale-y))}.active\:scale-95:active{--tw-scale-x:.95;--tw-scale-y:.95;transform:translate(var(--tw-translate-x), var(--tw-translate-y)) rotate(var(--tw-rotate)) skewX(var(--tw-skew-x)) skewY(var(--tw-skew-y)) scaleX(var(--tw-scale-x)) scaleY(var(--tw-scale-y))}.group:hover .group-hover\:scale-110{--tw-scale-x:1.1;--tw-scale-y:1.1;transform:translate(var(--tw-translate-x), var(--tw-translate-y)) rotate(var(--tw-rotate)) skewX(var(--tw-skew-x)) skewY(var(--tw-skew-y)) scaleX(var(--tw-scale-x)) scaleY(var(--tw-scale-y))}.group:hover .group-hover\:border-secondary-fixed{--tw-border-opacity:1;border-color:rgb(255 219 207 / var(--tw-border-opacity, 1))}.dark\:border-slate-800:is(.dark *){--tw-border-opacity:1;border-color:rgb(30 41 59 / var(--tw-border-opacity, 1))}.dark\:bg-cyan-900\/20:is(.dark *){background-color:rgb(22 78 99 / 0.2)}.dark\:bg-orange-900\/30:is(.dark *){background-color:rgb(124 45 18 / 0.3)}.dark\:bg-slate-800:is(.dark *){--tw-bg-opacity:1;background-color:rgb(30 41 59 / var(--tw-bg-opacity, 1))}.dark\:bg-slate-900\/80:is(.dark *){background-color:rgb(15 23 42 / 0.8)}.dark\:bg-slate-950\/80:is(.dark *){background-color:rgb(2 6 23 / 0.8)}.dark\:text-cyan-100:is(.dark *){--tw-text-opacity:1;color:rgb(207 250 254 / var(--tw-text-opacity, 1))}.dark\:text-cyan-300:is(.dark *){--tw-text-opacity:1;color:rgb(103 232 249 / var(--tw-text-opacity, 1))}.dark\:text-cyan-400:is(.dark *){--tw-text-opacity:1;color:rgb(34 211 238 / var(--tw-text-opacity, 1))}.dark\:text-cyan-500:is(.dark *){--tw-text-opacity:1;color:rgb(6 182 212 / var(--tw-text-opacity, 1))}.dark\:text-orange-300:is(.dark *){--tw-text-opacity:1;color:rgb(253 186 116 / var(--tw-text-opacity, 1))}.dark\:text-orange-400:is(.dark *){--tw-text-opacity:1;color:rgb(251 146 60 / var(--tw-text-opacity, 1))}.dark\:hover\:bg-orange-900\/30:hover:is(.dark *){background-color:rgb(124 45 18 / 0.3)}@media (min-width: 768px){.md\:col-span-12{grid-column:span 12 / span 12}.md\:col-span-4{grid-column:span 4 / span 4}.md\:col-span-8{grid-column:span 8 / span 8}.md\:row-span-1{grid-row:span 1 / span 1}.md\:row-span-2{grid-row:span 2 / span 2}.md\:flex{display:flex}.md\:hidden{display:none}.md\:grid-cols-12{grid-template-columns:repeat(12, minmax(0, 1fr))}.md\:text-4xl{font-size:2.25rem;line-height:2.5rem}.md\:text-5xl{font-size:3rem;line-height:1}}</style></head>
+<body class="bg-background font-body text-on-background selection:bg-secondary-fixed" data-mode="connect">
+<!-- TopAppBar -->
+<header class="bg-cyan-50/80 dark:bg-slate-900/80 backdrop-blur-md docked full-width top-0 sticky z-50 flex justify-between items-center px-6 py-4 w-full tonal-shift bg-cyan-100/50 dark:bg-cyan-900/20">
+<div class="flex items-center gap-4">
+<button class="text-cyan-800 dark:text-cyan-400 tap-highlight-none active:scale-95 duration-200">
+<span class="material-symbols-outlined" data-icon="menu"></span>
+</button>
+<h1 class="text-xl font-black text-cyan-900 dark:text-cyan-100 italic">Mis Recetas</h1>
+</div>
+<div class="flex items-center gap-6">
+<nav class="hidden md:flex gap-8">
+<a class="text-orange-600 dark:text-orange-400 font-bold font-plus-jakarta text-sm tracking-tight transition-colors" href="#">Recetas</a>
+<a class="text-cyan-700 dark:text-cyan-300 font-plus-jakarta text-sm font-bold tracking-tight hover:bg-orange-50 dark:hover:bg-orange-900/30 transition-colors" href="#">Planear</a>
+<a class="text-cyan-700 dark:text-cyan-300 font-plus-jakarta text-sm font-bold tracking-tight hover:bg-orange-50 dark:hover:bg-orange-900/30 transition-colors" href="#">Perfil</a>
+</nav>
+<div class="w-10 h-10 rounded-full bg-surface-container-highest flex items-center justify-center overflow-hidden border-2 border-primary-fixed ring-2 ring-primary-container/20">
+<img alt="Perfil de Chef" class="w-full h-full object-cover" data-alt="Close-up of a professional chef wearing a clean white uniform in a bright modern kitchen environment" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCaHVUEqJ_EsMFIYTbDiGDN8Mv7LyHDcjaAU75Ia76pGbP3xzS5hVV7s2-z_Q4W1C4ZmQaT_pCjmyf6nF68ZdfWg43WjmN6jbvUd17-5gGb8Nm54nxZSun-inV4xJgjZj-XGIkh-jd11Uj75X-_9KlHSt7A0NH9OoLtoxUrjDNcYWnFCw0GkX0YtmUIkFtywdcah1WjViNpCHrVT3B3z_OkGopU2zPjsZssXcnYSqC2IE4xRaC_CWj9Jv_cWarjrt6dhUFWf_M1lAg"/>
+</div>
+</div>
+</header>
+<main class="max-w-7xl mx-auto px-6 pt-8 pb-32">
+<!-- Hero Search Section -->
+<section class="mb-12">
+<div class="mb-6">
+<h2 class="font-headline text-4xl md:text-5xl font-extrabold text-on-surface tracking-tight leading-tight">
+                    Mis <span class="text-secondary italic">Recetas</span>
+</h2>
+<p class="text-on-surface-variant text-lg mt-2 font-medium">Encuentra inspiración para tu próxima creación.</p>
+</div>
+<div class="relative group max-w-2xl">
+<div class="absolute inset-y-0 left-5 flex items-center pointer-events-none text-primary">
+<span class="material-symbols-outlined">search</span>
+</div>
+<input class="w-full bg-surface-container-low border-none rounded-full py-5 pl-14 pr-6 text-on-surface-variant font-medium placeholder:text-outline/60 focus:ring-4 focus:ring-primary-fixed-dim/30 transition-all shadow-sm" placeholder="Buscar ingredientes, platos..." type="text"/>
+</div>
+</section>
+<!-- Category Scroll -->
+<section class="mb-12">
+<div class="flex items-center justify-between mb-4">
+<h3 class="font-headline text-xl font-bold text-on-surface">Explorar Categorías</h3>
+<button class="text-secondary font-bold text-sm hover:underline">Ver Todo</button>
+</div>
+<div class="flex gap-4 overflow-x-auto hide-scrollbar pb-4 -mx-2 px-2 snap-x snap-mandatory"><!-- Category 1: Entradas -->
+<button class="flex-shrink-0 flex flex-col items-center gap-2 w-20 snap-start group">
+<div class="w-14 h-14 bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-transparent group-hover:border-secondary-fixed flex items-center justify-center text-secondary transition-all active:scale-95">
+<span class="material-symbols-outlined text-2xl" data-icon="restaurant">restaurant</span>
+</div>
+<span class="font-headline font-bold text-on-surface text-[11px] uppercase tracking-tighter">Entradas</span>
+</button>
+<!-- Category 2: Platos Fuertes (Active/Selected State) -->
+<button class="flex-shrink-0 flex flex-col items-center gap-2 w-20 snap-start group">
+<div class="w-14 h-14 bg-secondary rounded-2xl shadow-md flex items-center justify-center text-white transition-all active:scale-95">
+<span class="material-symbols-outlined text-2xl" data-icon="dinner_dining">dinner_dining</span>
+</div>
+<span class="font-headline font-bold text-secondary text-[11px] uppercase tracking-tighter">Fuertes</span>
+</button>
+<!-- Category 3: Postres -->
+<button class="flex-shrink-0 flex flex-col items-center gap-2 w-20 snap-start group">
+<div class="w-14 h-14 bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-transparent group-hover:border-secondary-fixed flex items-center justify-center text-secondary transition-all active:scale-95">
+<span class="material-symbols-outlined text-2xl" data-icon="icecream">icecream</span>
+</div>
+<span class="font-headline font-bold text-on-surface text-[11px] uppercase tracking-tighter">Postres</span>
+</button>
+<!-- Category 4: Ensaladas -->
+<button class="flex-shrink-0 flex flex-col items-center gap-2 w-20 snap-start group">
+<div class="w-14 h-14 bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-transparent group-hover:border-secondary-fixed flex items-center justify-center text-secondary transition-all active:scale-95">
+<span class="material-symbols-outlined text-2xl" data-icon="nutrition">nutrition</span>
+</div>
+<span class="font-headline font-bold text-on-surface text-[11px] uppercase tracking-tighter">Ensaladas</span>
+</button>
+<!-- Category 5: Desayunos -->
+<button class="flex-shrink-0 flex flex-col items-center gap-2 w-20 snap-start group">
+<div class="w-14 h-14 bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-transparent group-hover:border-secondary-fixed flex items-center justify-center text-secondary transition-all active:scale-95">
+<span class="material-symbols-outlined text-2xl" data-icon="breakfast_dining">breakfast_dining</span>
+</div>
+<span class="font-headline font-bold text-on-surface text-[11px] uppercase tracking-tighter">Desayuno</span>
+</button>
+<!-- Category 6: Bebidas -->
+<button class="flex-shrink-0 flex flex-col items-center gap-2 w-20 snap-start group">
+<div class="w-14 h-14 bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-transparent group-hover:border-secondary-fixed flex items-center justify-center text-secondary transition-all active:scale-95">
+<span class="material-symbols-outlined text-2xl" data-icon="local_bar">local_bar</span>
+</div>
+<span class="font-headline font-bold text-on-surface text-[11px] uppercase tracking-tighter">Bebidas</span>
+</button></div>
+</section>
+<!-- Bento Grid Recipe Layout -->
+<section class="grid grid-cols-1 md:grid-cols-12 gap-6 auto-rows-[280px]">
+<!-- Main Featured Card (Bento Big) -->
+<div class="md:col-span-8 md:row-span-2 group relative overflow-hidden rounded-3xl bg-primary-container">
+<img alt="Salmón con verduras" class="absolute inset-0 w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 opacity-80" data-alt="Exquisite pan-seared salmon fillet served with grilled seasonal vegetables and herbs on a rustic ceramic plate, soft natural lighting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDVvopcmOULdHFzRiaiHCtR-zoSOpkSaCh4_DciCittRTPC-NtixGwjDlbjmPNhYdWS9acNCEEeaW1QK2wFFZcWFuLY317G7A26NvsLq6pkuwPZZckKRz-xMrfh1Q7QqhbNikkjEkjG6PGDGm4oSnPQNTJHxrq7NsBJ2OVQnIMIjuyjfHP6Xac6wfE8W108uKjvqsj9oglYJ8fDz3GfGF_95r9wFgdMshqpk9PTi4vwaSnJjfojx787Etafge5mIy3di8oVmE0u2eQ"/>
+<div class="absolute inset-0 bg-gradient-to-t from-primary/90 via-transparent to-transparent"></div>
+<div class="absolute bottom-0 left-0 p-8 w-full">
+<div class="flex gap-2 mb-4">
+<span class="bg-secondary px-3 py-1 rounded-full text-[12px] font-bold text-white tracking-wide">DESTACADO</span>
+<span class="bg-white/20 backdrop-blur-md px-3 py-1 rounded-full text-[12px] font-bold text-white tracking-wide flex items-center gap-1">
+<span class="material-symbols-outlined text-sm">schedule</span> 25 min
+                        </span>
+</div>
+<h3 class="font-headline text-3xl md:text-4xl font-extrabold text-white mb-2 leading-tight">Salmón Glaseado con Cítricos y Espárragos</h3>
+<div class="flex items-center gap-4 text-white/80">
+<div class="flex items-center gap-1">
+<span class="material-symbols-outlined text-orange-400" style='font-variation-settings: "FILL" 1;'>star</span>
+<span class="text-sm font-bold">4.9</span>
+</div>
+<span class="text-sm">#Saludable #CenaRápida</span>
+</div>
+</div>
+</div>
+<!-- Recipe Card 2 (Standard) -->
+<div class="md:col-span-4 md:row-span-1 group relative overflow-hidden rounded-3xl bg-surface-container-highest flex flex-col">
+<div class="h-1/2 overflow-hidden relative">
+<img alt="Pasta al pesto" class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" data-alt="Close-up of fresh pasta with bright green basil pesto sauce and sprinkled parmesan cheese on a clean white plate" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDZyyZ-bh7319x54e70yBzIZMlm_a6LrxlBuOXN3fdXhi3sozW2jFchgZax2DaDZSgI4jBeuIGDn6V45EElkj4i9wk2EgN0tU_cw8MfvmkfiNrJkavN2AALgk5LMSU48AFXFkldkuOLE9EAsoET9fK2oY0Jhq3tmz_BVUFOXrywwwj2Ws7DfSCOHT8lWpxbf746n1mGqfW43yLsVZwi6uVEZw1bk7GKWyp2Pb6wxkNLVK0TSZ-jDRmS8KTlrhypfsD6DMOpAB_IqL8"/>
+<button class="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/30 backdrop-blur-md flex items-center justify-center text-white hover:bg-secondary transition-colors">
+<span class="material-symbols-outlined">favorite</span>
+</button>
+</div>
+<div class="p-5 flex-1 flex flex-col justify-between">
+<div>
+<h4 class="font-headline text-lg font-bold text-on-surface mb-2">Pasta Primavera al Pesto Casero</h4>
+<div class="flex flex-wrap gap-2">
+<span class="text-[10px] font-bold text-primary uppercase tracking-tighter">#Vegetariano</span>
+<span class="text-[10px] font-bold text-secondary uppercase tracking-tighter">#Italiano</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Recipe Card 3 (Standard) -->
+<div class="md:col-span-4 md:row-span-1 group relative overflow-hidden rounded-3xl bg-surface-container-highest flex flex-col">
+<div class="h-1/2 overflow-hidden relative">
+<img alt="Tacos de autor" class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" data-alt="Modern gourmet street tacos with vibrant purple cabbage slaw and lime wedges on a wooden serving board" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAifDqPj5rrRep6E3CJ6Giv4PfaKYqDQ5GjFQ3FsT0-MtNRSRKz-0qQNEdCL71DuECn8y7Rc1J4iN6h6VGfh2eePCset9YhrWR6j_-AApu0BkqKsztAbAoDAR69emyaij9NweHWvohxpSuc0OweoL1DUFfcK5b-cEQ88ESdlEfDY0ZlHE26Mra9aamknARcRLs6be4qvOp3wJssk3n9SIuSJTwqoR0_9n9y8_Gk9Cgc4Zkvmo_qewjsLl6eLdPnFnyTdkg0hZk4FYQ"/>
+<button class="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/30 backdrop-blur-md flex items-center justify-center text-white hover:bg-secondary transition-colors">
+<span class="material-symbols-outlined">favorite</span>
+</button>
+</div>
+<div class="p-5 flex-1 flex flex-col justify-between">
+<div>
+<h4 class="font-headline text-lg font-bold text-on-surface mb-2">Tacos de Ribeye con Salsa de Mango</h4>
+<div class="flex flex-wrap gap-2">
+<span class="text-[10px] font-bold text-primary uppercase tracking-tighter">#Gourmet</span>
+<span class="text-[10px] font-bold text-secondary uppercase tracking-tighter">#Picante</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Recipe Card 4 (Horizontal Bento) -->
+<div class="md:col-span-12 md:row-span-1 group relative overflow-hidden rounded-3xl bg-secondary-fixed flex items-stretch">
+<div class="w-1/3 overflow-hidden relative">
+<img alt="Pizza Artesanal" class="w-full h-full object-cover" data-alt="Neapolitan style pizza with fresh mozzarella and basil leaves on a darkened wooden surface with warm atmospheric lighting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBq6vd3fyj6rhFpUT6SppODjTy0ZJYrOSsW3D6fpwvmJusd2vNf4me3LxvEiHR8XiGbVlqzN-8UAaMAaGGkPFV3jhTpLuvHDTK_kNz1L2aQHlP2oITMrEAE7J8dXfcR6BYudlSDzy4geAeuuRAZZPzUuTSoHajB_RZx0Ye08b4EjWyrYfOXhC8yddiYYIt6vEViMdamSYRNpTfNZ2gi5fdSKWh6mbi9VoJUdkJT5YDpn0XY5kBx_WZICPxvX5I1QKbXAwjt5cMh71k"/>
+</div>
+<div class="w-2/3 p-8 flex flex-col justify-center">
+<span class="text-secondary font-bold text-xs mb-2 uppercase tracking-widest">Favorito de la Semana</span>
+<h3 class="font-headline text-2xl font-black text-on-secondary-container mb-3 leading-tight">Margherita Napolitana: La Receta Original</h3>
+<p class="text-on-secondary-fixed-variant text-sm mb-4 line-clamp-2 max-w-lg">Aprende los secretos de la masa fermentada por 48 horas y la selección perfecta de tomates San Marzano.</p>
+<div class="flex gap-4 items-center">
+<span class="flex items-center gap-1 text-xs font-bold text-on-secondary-container">
+<span class="material-symbols-outlined text-sm">group</span> 4 Personas
+                        </span>
+<span class="flex items-center gap-1 text-xs font-bold text-on-secondary-container">
+<span class="material-symbols-outlined text-sm">local_fire_department</span> 450 kcal
+                        </span>
+</div>
+</div>
+</div>
+</section>
+</main>
+<!-- BottomNavBar Shell -->
+<nav class="fixed bottom-0 w-full z-50 flex justify-around items-center px-4 pb-4 pt-2 bg-[#f3faff]/80 dark:bg-slate-950/80 backdrop-blur-md border-t border-cyan-100 dark:border-slate-800 shadow-lg rounded-t-2xl md:hidden">
+<a class="flex flex-col items-center justify-center text-cyan-600 dark:text-cyan-500 px-3 py-1 hover:text-orange-500 transition-all active:scale-90 duration-200 bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 rounded-xl" href="#">
+<span class="material-symbols-outlined" style='font-variation-settings: "FILL" 1;'>restaurant</span>
+<span class="font-['Plus_Jakarta_Sans'] font-medium text-[0.625rem]">Recetas</span>
+</a>
+<a class="flex flex-col items-center justify-center text-cyan-600 dark:text-cyan-500 px-3 py-1 hover:text-orange-500 transition-all active:scale-90 duration-200" href="#">
+<span class="material-symbols-outlined">calendar_today</span>
+<span class="font-['Plus_Jakarta_Sans'] font-medium text-[0.625rem]">Planear</span>
+</a><a class="flex flex-col items-center justify-center text-cyan-600 dark:text-cyan-500 px-3 py-1 hover:text-orange-500 transition-all active:scale-90 duration-200" href="#">
+<span class="material-symbols-outlined">shopping_cart</span>
+<span class="font-['Plus_Jakarta_Sans'] font-medium text-[0.625rem]">Lista</span>
+</a>
+<a class="flex flex-col items-center justify-center px-3 py-1 hover:text-orange-500 transition-all active:scale-90 duration-200 text-cyan-600 dark:text-cyan-500" href="#">
+<span class="material-symbols-outlined">ac_unit</span>
+<span class="font-['Plus_Jakarta_Sans'] font-medium text-[0.625rem]">Congelador</span>
+</a>
+</nav>
+<button class="fixed bottom-24 right-6 w-14 h-14 bg-secondary text-white rounded-full shadow-lg flex items-center justify-center hover:scale-110 active:scale-95 transition-all duration-200 z-[60] group">
+<span class="material-symbols-outlined text-3xl">add</span>
+</button></body></html>
