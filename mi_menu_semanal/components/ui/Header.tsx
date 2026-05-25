@@ -17,10 +17,12 @@ export function Header() {
     <header className="bg-cyan-50/80 dark:bg-slate-900/80 backdrop-blur-md docked full-width top-0 sticky z-50 flex items-center justify-between px-6 py-4 w-full tonal-shift bg-cyan-100/50 dark:bg-cyan-900/20">
       <div className="flex-1 flex items-center">
         <Link href="/" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
-          <div className="w-8 h-8 rounded-xl bg-orange-500 flex items-center justify-center text-white shadow-md">
-            <span className="material-symbols-outlined text-lg">restaurant_menu</span>
-          </div>
-          <span className="font-headline font-black text-xl text-cyan-900 dark:text-cyan-100 tracking-tight hidden sm:block">MiMenú</span>
+          <img 
+            src="/icon.png" 
+            alt="Logo MiMenú" 
+            className="w-8 h-8 md:w-10 md:h-10 rounded-xl md:rounded-2xl shadow-md object-cover" 
+          />
+          <span className="font-headline font-black text-xl md:text-2xl text-cyan-900 dark:text-cyan-100 tracking-tight hidden sm:block">MiMenú</span>
         </Link>
       </div>
       
