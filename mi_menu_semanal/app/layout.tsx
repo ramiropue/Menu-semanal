@@ -27,7 +27,7 @@ export default function RootLayout({
   return (
     <html
       lang="es"
-      className={`${plusJakartaSans.variable} ${manrope.variable} h-full antialiased`}
+      className={`${plusJakartaSans.variable} ${manrope.variable} h-full antialiased overflow-x-hidden max-w-[100vw]`}
     >
       <head>
         <link
@@ -35,7 +35,7 @@ export default function RootLayout({
           rel="stylesheet"
         />
       </head>
-      <body className="bg-background font-body text-on-background selection:bg-secondary-fixed min-h-full flex flex-col overflow-x-hidden">
+      <body className="bg-background font-body text-on-background selection:bg-secondary-fixed min-h-full flex flex-col overflow-x-hidden max-w-[100vw]">
         {children}
       </body>
     </html>
