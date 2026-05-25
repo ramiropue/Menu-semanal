@@ -85,7 +85,7 @@ export default function CongeladorPage() {
     <div className="bg-[#F6F9FC] min-h-screen pb-32 md:pb-12 font-plus-jakarta text-[#2A4B4C]">
       <Header />
       
-      <main className="px-6 pt-10 md:pt-12 max-w-3xl mx-auto relative z-10">
+      <main className="px-4 md:px-6 pt-10 md:pt-12 max-w-7xl mx-auto relative z-10">
         <h1 className="text-3xl md:text-[42px] lg:text-5xl font-black text-[#0B3B3C] font-headline tracking-tight leading-none mb-6 md:mb-10 text-center">
           Mis <span className="text-[#B93B11]">Congeladores</span>
         </h1>
@@ -108,55 +108,62 @@ export default function CongeladorPage() {
         </div>
 
         {/* Tarjetas de Inventario */}
-        <div className="space-y-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
           {filteredItems.length === 0 ? (
-            <div className="text-center py-10">
+            <div className="text-center py-10 col-span-full">
               <p className="text-gray-500 font-medium">No hay productos en este congelador.</p>
             </div>
           ) : null}
 
           {filteredItems.map(item => (
-             <div key={item.id} className={`bg-white rounded-2xl md:rounded-[32px] p-5 md:p-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)] border-l-4 md:border-l-8 ${item.borderColor}`}>
+             <div key={item.id} className={`bg-white rounded-[20px] md:rounded-[24px] p-4 md:p-5 shadow-[0_4px_20px_rgb(0,0,0,0.04)] border-l-4 md:border-l-[6px] ${item.borderColor} flex flex-col`}>
                
-               <div className="flex justify-between items-start mb-6 md:mb-8 gap-3 md:gap-4">
-                 <div className={`w-[52px] h-[52px] md:w-[64px] md:h-[64px] rounded-[16px] md:rounded-[20px] ${item.iconBg} flex items-center justify-center shrink-0`}>
-                   <span className={`material-symbols-outlined text-[26px] md:text-[32px] ${item.iconColor}`}>{item.icon}</span>
+               <div className="flex justify-between items-start mb-4 md:mb-5 gap-3">
+                 <div className={`w-[48px] h-[48px] md:w-[56px] md:h-[56px] rounded-[14px] md:rounded-[16px] ${item.iconBg} flex items-center justify-center shrink-0`}>
+                   <span className={`material-symbols-outlined text-[24px] md:text-[28px] ${item.iconColor}`}>{item.icon}</span>
                  </div>
-                 <div className="flex-1 min-w-0 pt-1">
-                   <h2 className="text-lg md:text-[22px] font-black text-[#0B3B3C] leading-tight truncate">{item.title}</h2>
-                   <p className="text-gray-500 text-sm md:text-[16px] font-medium mt-0.5 md:mt-1">{item.subtitle}</p>
+                 <div className="flex-1 min-w-0 pt-0.5">
+                   <h2 className="text-base md:text-lg font-black text-[#0B3B3C] leading-tight truncate">{item.title}</h2>
+                   <div className="flex items-center gap-2 mt-0.5">
+                     <p className="text-gray-500 text-xs md:text-sm font-medium truncate">{item.subtitle}</p>
+                     <span className="bg-[#E2F1F6] text-[#0B3B3C] px-2 py-0.5 rounded-md text-[9px] md:text-[10px] font-bold uppercase tracking-wider shrink-0">
+                       📍 {item.location}
+                     </span>
+                   </div>
                  </div>
-                 <div className={`${item.statusBg} ${item.statusColor} px-3 py-1 md:px-4 md:py-1.5 rounded-full text-[9px] md:text-[11px] font-black tracking-widest uppercase shrink-0 mt-1`}>
+                 <div className={`${item.statusBg} ${item.statusColor} px-2.5 py-1 md:px-3 md:py-1 rounded-full text-[9px] md:text-[10px] font-black tracking-widest uppercase shrink-0 mt-1`}>
                    {item.status}
                  </div>
                </div>
 
-               <div className="bg-[#F6F9FC] rounded-2xl md:rounded-[24px] p-3 md:p-4 flex justify-between items-center mb-5 md:mb-6">
-                 <span className="text-[#0B3B3C] font-bold text-sm md:text-[17px] pl-1 md:pl-2">{item.unitLabel}</span>
-                 <div className="flex items-center gap-3 md:gap-5">
-                   <button onClick={() => updateCount(item.id, -1)} className="w-9 h-9 md:w-11 md:h-11 bg-white rounded-full flex items-center justify-center shadow-sm text-[#0B3B3C] hover:bg-gray-50 active:scale-95 transition-all">
-                     <span className="material-symbols-outlined font-black text-[20px] md:text-[24px]">remove</span>
-                   </button>
-                   <span className="text-[20px] md:text-[24px] font-black text-[#0B3B3C] w-6 md:w-8 text-center">{item.count}</span>
-                   <button onClick={() => updateCount(item.id, 1)} className="w-9 h-9 md:w-11 md:h-11 bg-white rounded-full flex items-center justify-center shadow-sm text-[#0B3B3C] hover:bg-gray-50 active:scale-95 transition-all">
-                     <span className="material-symbols-outlined font-black text-[20px] md:text-[24px]">add</span>
-                   </button>
-                 </div>
-               </div>
-
-               <div className="flex justify-between items-end">
-                 <div>
-                   <p className={`text-[9px] md:text-[11px] font-black uppercase tracking-widest mb-1 md:mb-2 ${item.statusColor}`}>FECHA DE CONGELADO</p>
-                   <div className="relative">
-                     <input 
-                       type="date" 
-                       value={item.date} 
-                       onChange={(e) => updateDate(item.id, e.target.value)}
-                       className="bg-[#F6F9FC] border border-[#E2F1F6] rounded-xl py-2 md:py-2.5 pl-3 md:pl-4 pr-8 md:pr-10 text-[#2A4B4C] text-sm md:text-[15px] font-bold outline-none focus:ring-2 focus:ring-[#0B3B3C]/20 transition-all cursor-pointer" 
-                     />
+               <div className="flex-1 flex flex-col justify-end">
+                 <div className="bg-[#F6F9FC] rounded-2xl p-2.5 flex justify-between items-center mb-4">
+                   <span className="text-[#0B3B3C] font-bold text-xs md:text-sm pl-1">{item.unitLabel}</span>
+                   <div className="flex items-center gap-2 md:gap-3">
+                     <button onClick={() => updateCount(item.id, -1)} className="w-8 h-8 md:w-9 md:h-9 bg-white rounded-full flex items-center justify-center shadow-sm text-[#0B3B3C] hover:bg-gray-50 active:scale-95 transition-all">
+                       <span className="material-symbols-outlined font-black text-[18px] md:text-[20px]">remove</span>
+                     </button>
+                     <span className="text-lg md:text-[20px] font-black text-[#0B3B3C] w-5 md:w-6 text-center">{item.count}</span>
+                     <button onClick={() => updateCount(item.id, 1)} className="w-8 h-8 md:w-9 md:h-9 bg-white rounded-full flex items-center justify-center shadow-sm text-[#0B3B3C] hover:bg-gray-50 active:scale-95 transition-all">
+                       <span className="material-symbols-outlined font-black text-[18px] md:text-[20px]">add</span>
+                     </button>
                    </div>
                  </div>
-                 <span className={`${item.warningColor} text-sm md:text-[15px] font-bold mb-1 md:mb-2`}>{item.warning}</span>
+
+                 <div className="flex justify-between items-end">
+                   <div>
+                     <p className={`text-[8px] md:text-[9px] font-black uppercase tracking-widest mb-1 md:mb-1.5 ${item.statusColor}`}>FECHA CONGELADO</p>
+                     <div className="relative">
+                       <input 
+                         type="date" 
+                         value={item.date} 
+                         onChange={(e) => updateDate(item.id, e.target.value)}
+                         className="bg-[#F6F9FC] border border-[#E2F1F6] rounded-lg py-1.5 md:py-2 pl-2 md:pl-3 pr-6 text-[#2A4B4C] text-xs md:text-sm font-bold outline-none focus:ring-2 focus:ring-[#0B3B3C]/20 transition-all cursor-pointer h-8 md:h-9" 
+                       />
+                     </div>
+                   </div>
+                   <span className={`${item.warningColor} text-xs md:text-sm font-bold mb-1 md:mb-1.5 truncate ml-2`}>{item.warning}</span>
+                 </div>
                </div>
             </div>
           ))}
