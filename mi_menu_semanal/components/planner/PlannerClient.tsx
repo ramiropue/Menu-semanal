@@ -106,11 +106,11 @@ export function PlannerClient({ recipes }: { recipes: Recipe[] }) {
       <main className="px-6 pt-10 md:pt-12 max-w-3xl mx-auto relative z-10">
         
         {/* TITULAR Y SELECTOR DE SEMANA */}
-        <div className="mb-10">
-          <p className="text-[#B93B11] font-extrabold text-[11px] tracking-[0.15em] uppercase mb-1">
+        <div className="mb-8 md:mb-10">
+          <p className="text-[#B93B11] font-extrabold text-[10px] md:text-[11px] tracking-[0.15em] uppercase mb-1">
             MENÚ DE LA SEMANA
           </p>
-          <h1 className="text-4xl md:text-5xl font-black text-[#0B3B3C] font-headline leading-tight tracking-tight mb-5">
+          <h1 className="text-3xl md:text-5xl font-black text-[#0B3B3C] font-headline leading-tight tracking-tight mb-4 md:mb-5">
             Planificador Semanal
           </h1>
           
@@ -127,12 +127,12 @@ export function PlannerClient({ recipes }: { recipes: Recipe[] }) {
             </button>
           </div>
 
-          <div className="flex gap-3">
-             <button className="bg-[#0B3B3C] text-white px-5 py-2.5 rounded-xl font-bold flex items-center gap-2 shadow-sm text-[15px] hover:bg-[#082a2b] transition-colors">
-               <span className="material-symbols-outlined text-[20px]">share</span>
+          <div className="flex gap-2 md:gap-3">
+             <button className="flex-1 md:flex-none justify-center bg-[#0B3B3C] text-white px-4 md:px-5 py-2.5 rounded-xl font-bold flex items-center gap-2 shadow-sm text-sm md:text-[15px] hover:bg-[#082a2b] transition-colors">
+               <span className="material-symbols-outlined text-[18px] md:text-[20px]">share</span>
                Compartir
              </button>
-             <button className="bg-[#D1E6ED] text-[#0B3B3C] w-[44px] h-[44px] rounded-xl flex items-center justify-center shadow-sm hover:bg-[#c2dce4] transition-colors">
+             <button className="bg-[#D1E6ED] text-[#0B3B3C] w-[44px] h-[44px] rounded-xl flex items-center justify-center shadow-sm hover:bg-[#c2dce4] transition-colors shrink-0">
                <span className="material-symbols-outlined text-[20px]">settings</span>
              </button>
           </div>
@@ -143,10 +143,10 @@ export function PlannerClient({ recipes }: { recipes: Recipe[] }) {
            {currentWeekDays.map((day) => {
              const meals = getMealsForDate(day.date);
              return (
-               <div key={day.date} className="space-y-4">
+               <div key={day.date} className="space-y-3 md:space-y-4">
                  {/* Título del día */}
-                 <h2 className="text-[#0B3B3C] italic font-black text-[22px] tracking-wide ml-1 flex items-baseline gap-2">
-                   {day.name} <span className="text-gray-400 font-bold text-[15px] not-italic">{day.dateStr}</span>
+                 <h2 className="text-[#0B3B3C] italic font-black text-xl md:text-[22px] tracking-wide ml-1 flex items-baseline gap-2">
+                   {day.name} <span className="text-gray-400 font-bold text-sm md:text-[15px] not-italic">{day.dateStr}</span>
                  </h2>
                  
                  {/* Lista de comidas */}
@@ -159,14 +159,14 @@ export function PlannerClient({ recipes }: { recipes: Recipe[] }) {
                         
                         return (
                           <Link href={`/recetas/${recipe.id}`} key={index} className="bg-white rounded-[24px] p-3.5 shadow-[0_4px_20px_rgb(0,0,0,0.03)] flex items-center gap-4 hover:shadow-md transition-shadow cursor-pointer block">
-                            <div className="w-[60px] h-[60px] rounded-[16px] overflow-hidden shrink-0 shadow-sm">
+                            <div className="w-[52px] h-[52px] md:w-[60px] md:h-[60px] rounded-[16px] overflow-hidden shrink-0 shadow-sm">
                               <img src={recipe.image!} alt={recipe.title} className="w-full h-full object-cover" />
                             </div>
                             <div className="flex-1 min-w-0">
-                              <p className="text-[#B93B11] text-[10px] font-black uppercase tracking-widest mb-0.5">
+                              <p className="text-[#B93B11] text-[9px] md:text-[10px] font-black uppercase tracking-widest mb-0.5">
                                 {meal.type}
                               </p>
-                              <p className="text-[#0B3B3C] font-bold text-[15px] leading-tight truncate">
+                              <p className="text-[#0B3B3C] font-bold text-sm md:text-[15px] leading-tight truncate">
                                 {recipe.title}
                               </p>
                             </div>
@@ -179,14 +179,14 @@ export function PlannerClient({ recipes }: { recipes: Recipe[] }) {
                         // CARTA SIN PLANIFICAR
                         return (
                           <div key={index} onClick={() => openModal(day.date, meal.type, index)} className="bg-white/40 border-[1.5px] border-dashed border-gray-300 rounded-[24px] p-3.5 flex items-center gap-4 hover:bg-white/60 transition-colors cursor-pointer group">
-                            <div className="w-[60px] h-[60px] rounded-[16px] bg-[#E2F1F6] flex items-center justify-center shrink-0">
-                              <span className="material-symbols-outlined text-gray-400 group-hover:text-[#0B3B3C] transition-colors">restaurant</span>
+                            <div className="w-[52px] h-[52px] md:w-[60px] md:h-[60px] rounded-[16px] bg-[#E2F1F6] flex items-center justify-center shrink-0">
+                              <span className="material-symbols-outlined text-gray-400 group-hover:text-[#0B3B3C] transition-colors text-[20px] md:text-[24px]">restaurant</span>
                             </div>
                             <div className="flex-1 min-w-0">
-                              <p className="text-[#B93B11] text-[10px] font-black uppercase tracking-widest mb-0.5">
+                              <p className="text-[#B93B11] text-[9px] md:text-[10px] font-black uppercase tracking-widest mb-0.5">
                                 {meal.type}
                               </p>
-                              <p className="text-gray-400 font-medium text-[15px] leading-tight">
+                              <p className="text-gray-400 font-medium text-sm md:text-[15px] leading-tight">
                                 Sin planificar
                               </p>
                             </div>

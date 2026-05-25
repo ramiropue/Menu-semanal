@@ -86,7 +86,7 @@ export default function CongeladorPage() {
       <Header />
       
       <main className="px-6 pt-10 md:pt-12 max-w-3xl mx-auto relative z-10">
-        <h1 className="text-[42px] md:text-5xl font-black text-[#0B3B3C] font-headline tracking-tight leading-none mb-10 text-center">
+        <h1 className="text-3xl md:text-[42px] lg:text-5xl font-black text-[#0B3B3C] font-headline tracking-tight leading-none mb-6 md:mb-10 text-center">
           Mis <span className="text-[#B93B11]">Congeladores</span>
         </h1>
 
@@ -96,7 +96,7 @@ export default function CongeladorPage() {
             <button 
               key={loc}
               onClick={() => setFilter(loc)}
-              className={`px-6 py-2.5 rounded-full font-bold text-[15px] shrink-0 transition-colors ${
+              className={`px-5 py-2 md:px-6 md:py-2.5 rounded-full font-bold text-sm md:text-[15px] shrink-0 transition-colors ${
                 filter === loc 
                   ? "bg-[#0B3B3C] text-white shadow-sm" 
                   : "bg-[#D1E6ED] text-[#0B3B3C] hover:bg-[#c2dce4]"
@@ -116,47 +116,47 @@ export default function CongeladorPage() {
           ) : null}
 
           {filteredItems.map(item => (
-            <div key={item.id} className={`bg-white rounded-[32px] p-6 md:p-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)] border-l-8 ${item.borderColor}`}>
+             <div key={item.id} className={`bg-white rounded-2xl md:rounded-[32px] p-5 md:p-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)] border-l-4 md:border-l-8 ${item.borderColor}`}>
                
-               <div className="flex justify-between items-start mb-8 gap-4">
-                 <div className={`w-[64px] h-[64px] rounded-[20px] ${item.iconBg} flex items-center justify-center shrink-0`}>
-                   <span className={`material-symbols-outlined text-[32px] ${item.iconColor}`}>{item.icon}</span>
+               <div className="flex justify-between items-start mb-6 md:mb-8 gap-3 md:gap-4">
+                 <div className={`w-[52px] h-[52px] md:w-[64px] md:h-[64px] rounded-[16px] md:rounded-[20px] ${item.iconBg} flex items-center justify-center shrink-0`}>
+                   <span className={`material-symbols-outlined text-[26px] md:text-[32px] ${item.iconColor}`}>{item.icon}</span>
                  </div>
                  <div className="flex-1 min-w-0 pt-1">
-                   <h2 className="text-[22px] font-black text-[#0B3B3C] leading-tight truncate">{item.title}</h2>
-                   <p className="text-gray-500 text-[16px] font-medium mt-1">{item.subtitle}</p>
+                   <h2 className="text-lg md:text-[22px] font-black text-[#0B3B3C] leading-tight truncate">{item.title}</h2>
+                   <p className="text-gray-500 text-sm md:text-[16px] font-medium mt-0.5 md:mt-1">{item.subtitle}</p>
                  </div>
-                 <div className={`${item.statusBg} ${item.statusColor} px-4 py-1.5 rounded-full text-[11px] font-black tracking-widest uppercase shrink-0 mt-1`}>
+                 <div className={`${item.statusBg} ${item.statusColor} px-3 py-1 md:px-4 md:py-1.5 rounded-full text-[9px] md:text-[11px] font-black tracking-widest uppercase shrink-0 mt-1`}>
                    {item.status}
                  </div>
                </div>
 
-               <div className="bg-[#F6F9FC] rounded-[24px] p-4 flex justify-between items-center mb-6">
-                 <span className="text-[#0B3B3C] font-bold text-[17px] pl-2">{item.unitLabel}</span>
-                 <div className="flex items-center gap-5">
-                   <button onClick={() => updateCount(item.id, -1)} className="w-11 h-11 bg-white rounded-full flex items-center justify-center shadow-sm text-[#0B3B3C] hover:bg-gray-50 active:scale-95 transition-all">
-                     <span className="material-symbols-outlined font-black text-[24px]">remove</span>
+               <div className="bg-[#F6F9FC] rounded-2xl md:rounded-[24px] p-3 md:p-4 flex justify-between items-center mb-5 md:mb-6">
+                 <span className="text-[#0B3B3C] font-bold text-sm md:text-[17px] pl-1 md:pl-2">{item.unitLabel}</span>
+                 <div className="flex items-center gap-3 md:gap-5">
+                   <button onClick={() => updateCount(item.id, -1)} className="w-9 h-9 md:w-11 md:h-11 bg-white rounded-full flex items-center justify-center shadow-sm text-[#0B3B3C] hover:bg-gray-50 active:scale-95 transition-all">
+                     <span className="material-symbols-outlined font-black text-[20px] md:text-[24px]">remove</span>
                    </button>
-                   <span className="text-[24px] font-black text-[#0B3B3C] w-8 text-center">{item.count}</span>
-                   <button onClick={() => updateCount(item.id, 1)} className="w-11 h-11 bg-white rounded-full flex items-center justify-center shadow-sm text-[#0B3B3C] hover:bg-gray-50 active:scale-95 transition-all">
-                     <span className="material-symbols-outlined font-black text-[24px]">add</span>
+                   <span className="text-[20px] md:text-[24px] font-black text-[#0B3B3C] w-6 md:w-8 text-center">{item.count}</span>
+                   <button onClick={() => updateCount(item.id, 1)} className="w-9 h-9 md:w-11 md:h-11 bg-white rounded-full flex items-center justify-center shadow-sm text-[#0B3B3C] hover:bg-gray-50 active:scale-95 transition-all">
+                     <span className="material-symbols-outlined font-black text-[20px] md:text-[24px]">add</span>
                    </button>
                  </div>
                </div>
 
                <div className="flex justify-between items-end">
                  <div>
-                   <p className={`text-[11px] font-black uppercase tracking-widest mb-2 ${item.statusColor}`}>FECHA DE CONGELADO</p>
+                   <p className={`text-[9px] md:text-[11px] font-black uppercase tracking-widest mb-1 md:mb-2 ${item.statusColor}`}>FECHA DE CONGELADO</p>
                    <div className="relative">
                      <input 
                        type="date" 
                        value={item.date} 
                        onChange={(e) => updateDate(item.id, e.target.value)}
-                       className="bg-[#F6F9FC] border border-[#E2F1F6] rounded-xl py-2.5 pl-4 pr-10 text-[#2A4B4C] text-[15px] font-bold outline-none focus:ring-2 focus:ring-[#0B3B3C]/20 transition-all cursor-pointer" 
+                       className="bg-[#F6F9FC] border border-[#E2F1F6] rounded-xl py-2 md:py-2.5 pl-3 md:pl-4 pr-8 md:pr-10 text-[#2A4B4C] text-sm md:text-[15px] font-bold outline-none focus:ring-2 focus:ring-[#0B3B3C]/20 transition-all cursor-pointer" 
                      />
                    </div>
                  </div>
-                 <span className={`${item.warningColor} text-[15px] font-bold mb-2`}>{item.warning}</span>
+                 <span className={`${item.warningColor} text-sm md:text-[15px] font-bold mb-1 md:mb-2`}>{item.warning}</span>
                </div>
             </div>
           ))}
