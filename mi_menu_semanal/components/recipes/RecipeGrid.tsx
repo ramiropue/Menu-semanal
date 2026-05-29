@@ -1,7 +1,13 @@
 import { Recipe } from "@/data/mockData";
 import { RecipeCard } from "./RecipeCard";
 
-export function RecipeGrid({ recipes }: { recipes: Recipe[] }) {
+export function RecipeGrid({ 
+  recipes,
+  onToggleFavorite
+}: { 
+  recipes: Recipe[];
+  onToggleFavorite?: (id: string, newValue: boolean) => void;
+}) {
   const featuredRecipes = recipes.filter(
     (recipe) => recipe.type === "featured" || recipe.isWeeklyFavorite
   );
@@ -20,7 +26,7 @@ export function RecipeGrid({ recipes }: { recipes: Recipe[] }) {
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {featuredRecipes.map((recipe) => (
-              <RecipeCard key={recipe.id} recipe={recipe} />
+              <RecipeCard key={recipe.id} recipe={recipe} onToggleFavorite={onToggleFavorite} />
             ))}
           </div>
         </section>
@@ -35,7 +41,7 @@ export function RecipeGrid({ recipes }: { recipes: Recipe[] }) {
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {otherRecipes.map((recipe) => (
-              <RecipeCard key={recipe.id} recipe={recipe} />
+              <RecipeCard key={recipe.id} recipe={recipe} onToggleFavorite={onToggleFavorite} />
             ))}
           </div>
         </section>

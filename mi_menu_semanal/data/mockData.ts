@@ -14,6 +14,7 @@ export type Recipe = {
   time?: string;
   rating?: number;
   isWeeklyFavorite?: boolean;
+  is_favorite?: boolean;
   servings?: number;
   calories?: number;
   description?: string;

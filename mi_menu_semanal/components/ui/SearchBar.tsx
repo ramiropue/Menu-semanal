@@ -1,4 +1,9 @@
-export function SearchBar() {
+type SearchBarProps = {
+  value?: string;
+  onChange?: (value: string) => void;
+};
+
+export function SearchBar({ value = "", onChange }: SearchBarProps) {
   return (
     <section className="mb-10 md:mb-12">
       <div className="mb-5 md:mb-6 text-center">
@@ -17,6 +22,8 @@ export function SearchBar() {
           className="w-full bg-surface-container-low border-none rounded-full py-4 pl-14 pr-6 text-on-surface-variant text-base md:text-lg font-medium placeholder:text-outline/60 focus:ring-4 focus:ring-primary-fixed-dim/30 transition-all shadow-sm outline-none"
           placeholder="Buscar ingredientes, platos..."
           type="text"
+          value={value}
+          onChange={(e) => onChange?.(e.target.value)}
         />
       </div>
     </section>

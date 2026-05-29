@@ -14,7 +14,7 @@ export default function NewRecipePage() {
   
   // States
   const [title, setTitle] = useState("");
-  const [category, setCategory] = useState("Alta Cocina");
+  const [category, setCategory] = useState("Entrantes");
   const [time, setTime] = useState("");
   const [ingredients, setIngredients] = useState<Ingredient[]>([{ id: '1', quantity: "", name: "" }]);
   const [steps, setSteps] = useState<Step[]>([{ id: '1', text: "", image: null }]);
@@ -23,15 +23,20 @@ export default function NewRecipePage() {
   const [chefTips, setChefTips] = useState("");
   const [coverImage, setCoverImage] = useState<File | null>(null);
   
+  const [importUrl, setImportUrl] = useState("");
+  const [isScraping, setIsScraping] = useState(false);
+  
   const [isSubmitting, setIsSubmitting] = useState(false);
   const coverImageInputRef = useRef<HTMLInputElement>(null);
 
   // Categories mapping (in a real app, this should be fetched from DB)
   const categoryMap: Record<string, string> = {
-    "Alta Cocina": "2", // Mapped to Fuertes for now
-    "Postres": "3",
-    "Fuertes": "2",
-    "Entradas": "1"
+    "Entrantes": "2",
+    "Desayuno": "3",
+    "Carne": "4",
+    "Pescado": "5",
+    "Ensaladas": "6",
+    "Postres": "7",
   };
 
   // Ingredient Handlers
@@ -78,6 +83,70 @@ export default function NewRecipePage() {
     return publicUrlData.publicUrl;
   };
 
+  // Scraping Logic
+  const handleScrape = async () => {
+    if (!importUrl) {
+      alert("Por favor, introduce una URL para extraer la receta.");
+      return;
+    }
+    
+    setIsScraping(true);
+    try {
+      const response = await fetch('/api/scrape', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: importUrl })
+      });
+      
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.error || 'Error al extraer la receta');
+      }
+
+      // Check if data is empty (AI didn't find anything)
+      const hasIngredients = data.ingredients && data.ingredients.length > 0;
+      const hasSteps = data.steps && data.steps.length > 0;
+      
+      if (!data.title && !hasIngredients && !hasSteps) {
+        throw new Error('La IA no ha podido encontrar ninguna receta en este enlace. Puede que la web esté bloqueando el acceso o sea privada.');
+      }
+
+      // Populate form
+      if (data.title) setTitle(data.title);
+      if (data.time && data.time !== "Variable") setTime(data.time);
+      
+      if (hasIngredients) {
+        setIngredients(data.ingredients.map((ing: any, i: number) => ({
+          id: Date.now().toString() + i,
+          quantity: ing.quantity || "",
+          name: ing.name || ""
+        })));
+      }
+      
+      if (hasSteps) {
+        setSteps(data.steps.map((stepText: string, i: number) => ({
+          id: Date.now().toString() + i,
+          text: stepText,
+          image: null
+        })));
+      }
+
+      let newChefTips = data.chefTips || "";
+      newChefTips += newChefTips ? "\n\n" : "";
+      newChefTips += `Enlace original: ${importUrl}`;
+      setChefTips(newChefTips);
+
+      alert("¡Receta extraída con éxito! Revisa los datos antes de guardar.");
+
+    } catch (error: any) {
+      console.error("Error al extraer receta:", error);
+      alert(error.message);
+    } finally {
+      setIsScraping(false);
+    }
+  };
+
   // Submit Logic
   const handleSave = async (isDraft: boolean) => {
     if (!title) {
@@ -99,8 +168,16 @@ export default function NewRecipePage() {
       // Clean ingredients
       const cleanIngredients = ingredients.filter(i => i.name.trim() !== "").map(i => ({ cantidad: i.quantity, ingrediente: i.name }));
       
-      // Clean steps
-      const cleanSteps = steps.filter(s => s.text.trim() !== "").map((s, index) => ({ step: index + 1, description: s.text }));
+      // Clean steps and upload their images if any
+      const cleanSteps = await Promise.all(
+        steps.filter(s => s.text.trim() !== "").map(async (s, index) => {
+          let stepImageUrl = null;
+          if (s.image) {
+            stepImageUrl = await uploadImage(s.image);
+          }
+          return { step: index + 1, description: s.text, image_url: stepImageUrl };
+        })
+      );
 
       const recipeData = {
         id: newId,
@@ -166,10 +243,12 @@ export default function NewRecipePage() {
                     onChange={e => setCategory(e.target.value)}
                     className="w-full rounded-xl border-none p-3 shadow-sm bg-white appearance-none focus:ring-2 focus:ring-[#0B3B3C] outline-none text-base text-[#2A4B4C]"
                   >
-                    <option>Alta Cocina</option>
+                    <option>Entrantes</option>
+                    <option>Desayuno</option>
+                    <option>Carne</option>
+                    <option>Pescado</option>
+                    <option>Ensaladas</option>
                     <option>Postres</option>
-                    <option>Fuertes</option>
-                    <option>Entradas</option>
                   </select>
                   <span className="material-symbols-outlined absolute right-3 top-3 text-gray-500 pointer-events-none">expand_more</span>
                 </div>
@@ -188,10 +267,26 @@ export default function NewRecipePage() {
                 <label className="block text-sm font-bold text-[#2A4B4C] mb-2">Importar desde URL</label>
                 <div className="relative">
                   <span className="material-symbols-outlined absolute left-3 top-3 text-gray-400">link</span>
-                  <input type="url" placeholder="https://ejemplo.com/receta-deliciosa" className="w-full rounded-xl border-none p-3 pl-10 shadow-sm bg-white focus:ring-2 focus:ring-[#0B3B3C] outline-none text-base text-[#2A4B4C]" />
+                  <input 
+                    type="url" 
+                    value={importUrl}
+                    onChange={(e) => setImportUrl(e.target.value)}
+                    placeholder="https://ejemplo.com/receta-deliciosa" 
+                    className="w-full rounded-xl border-none p-3 pl-10 shadow-sm bg-white focus:ring-2 focus:ring-[#0B3B3C] outline-none text-base text-[#2A4B4C]" 
+                  />
                 </div>
-                <button type="button" onClick={() => alert("Función de scraping en desarrollo")} className="mt-3 w-full bg-[#0B3B3C] text-white py-3 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-[#082a2b] transition-colors">
-                  <span className="material-symbols-outlined">auto_fix_high</span> Extraer datos
+                <button 
+                  type="button" 
+                  onClick={handleScrape} 
+                  disabled={isScraping}
+                  className="mt-3 w-full bg-[#0B3B3C] text-white py-3 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-[#082a2b] transition-colors disabled:opacity-70"
+                >
+                  {isScraping ? (
+                    <span className="material-symbols-outlined animate-spin">sync</span>
+                  ) : (
+                    <span className="material-symbols-outlined">auto_fix_high</span>
+                  )}
+                  {isScraping ? "Analizando página..." : "Extraer datos"}
                 </button>
               </div>
             </div>
@@ -304,8 +399,28 @@ export default function NewRecipePage() {
                       ></textarea>
                       {/* Botón de imagen y botón de eliminar */}
                       <div className="flex justify-between items-center pt-1">
-                        <button type="button" className="w-12 h-12 rounded-xl border-2 border-dashed border-gray-300 flex items-center justify-center text-gray-400 hover:text-[#0B3B3C] hover:border-[#0B3B3C] transition-colors bg-white/50">
-                          <span className="material-symbols-outlined text-lg">add_a_photo</span>
+                        <input 
+                          type="file" 
+                          accept="image/*"
+                          className="hidden"
+                          id={`step-image-${step.id}`}
+                          onChange={(e) => {
+                            if (e.target.files && e.target.files[0]) {
+                              setSteps(steps.map(s => s.id === step.id ? { ...s, image: e.target.files![0] } : s));
+                            }
+                          }}
+                        />
+                        <button 
+                          type="button" 
+                          onClick={() => document.getElementById(`step-image-${step.id}`)?.click()}
+                          className="w-12 h-12 rounded-xl border-2 border-dashed border-gray-300 flex items-center justify-center text-gray-400 hover:text-[#0B3B3C] hover:border-[#0B3B3C] transition-colors bg-white/50 overflow-hidden"
+                          title="Añadir foto al paso"
+                        >
+                          {step.image ? (
+                            <img src={URL.createObjectURL(step.image)} alt="Paso" className="w-full h-full object-cover" />
+                          ) : (
+                            <span className="material-symbols-outlined text-lg">add_a_photo</span>
+                          )}
                         </button>
                         <button 
                           type="button" 

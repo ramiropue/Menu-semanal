@@ -1,6 +1,12 @@
 import { Category } from "@/data/mockData";
 
-export function CategoryScroll({ categories }: { categories: Category[] }) {
+export function CategoryScroll({ 
+  categories, 
+  onCategoryClick 
+}: { 
+  categories: Category[];
+  onCategoryClick?: (id: string) => void;
+}) {
   return (
     <section className="mb-10 md:mb-12">
       <div className="flex items-center justify-center mb-4 md:mb-5">
@@ -12,6 +18,7 @@ export function CategoryScroll({ categories }: { categories: Category[] }) {
         {categories.map((category) => (
           <button
             key={category.id}
+            onClick={() => onCategoryClick?.(category.id)}
             className="flex-shrink-0 flex flex-col items-center gap-1.5 md:gap-2 w-[52px] md:w-24 group"
           >
             <div

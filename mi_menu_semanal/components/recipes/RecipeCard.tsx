@@ -2,8 +2,23 @@
 
 import { Recipe } from "@/data/mockData";
 import Link from "next/link";
+import { supabase } from "@/lib/supabase";
 
-export function RecipeCard({ recipe }: { recipe: Recipe }) {
+export function RecipeCard({ 
+  recipe,
+  onToggleFavorite
+}: { 
+  recipe: Recipe;
+  onToggleFavorite?: (id: string, newValue: boolean) => void;
+}) {
+  const handleFavoriteClick = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    const newValue = !recipe.is_favorite;
+    
+    // Actualizar estado local y localStorage a través del padre
+    onToggleFavorite?.(recipe.id, newValue);
+  };
+
   return (
     <Link href={`/recetas/${recipe.id}`} className="group relative overflow-hidden rounded-3xl bg-surface-container flex flex-col h-full shadow-sm hover:shadow-md transition-all duration-300 border border-outline-variant/30 block cursor-pointer">
       <div className="aspect-[4/3] w-full overflow-hidden relative shrink-0">
@@ -13,8 +28,16 @@ export function RecipeCard({ recipe }: { recipe: Recipe }) {
           className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
           src={recipe.image}
         />
-        <div className="absolute top-4 right-4 w-10 h-10 rounded-full bg-black/20 backdrop-blur-md flex items-center justify-center text-white hover:bg-secondary transition-colors cursor-pointer" onClick={(e) => { e.preventDefault(); /* Lógica favoritos */ }}>
-          <span className="material-symbols-outlined text-[20px]">favorite</span>
+        <div 
+          className="absolute top-4 right-4 w-10 h-10 rounded-full bg-black/20 backdrop-blur-md flex items-center justify-center text-white hover:bg-secondary transition-colors cursor-pointer z-10" 
+          onClick={handleFavoriteClick}
+        >
+          <span 
+            className={`material-symbols-outlined text-[20px] ${recipe.is_favorite ? 'text-secondary-fixed' : ''}`}
+            style={{ fontVariationSettings: recipe.is_favorite ? '"FILL" 1' : '"FILL" 0' }}
+          >
+            favorite
+          </span>
         </div>
         {(recipe.time || recipe.rating) && (
           <div className="absolute bottom-4 left-4 flex gap-2">
