@@ -16,45 +16,69 @@ export async function POST(request: Request) {
 
     const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
-    // 1. Intentar descargar el HTML de la URL
+    // Resolver URL acortada (vm.tiktok.com, bit.ly, etc.)
+    let resolvedUrl = url;
+    try {
+      const headRes = await fetch(url, { method: 'HEAD', redirect: 'follow' });
+      resolvedUrl = headRes.url || url;
+      console.log(`[Scraper] URL resuelta: ${resolvedUrl}`);
+    } catch {
+      console.log(`[Scraper] No se pudo resolver la URL, usando la original`);
+    }
+
+    // 1. Obtener datos con APIs específicas (ej: TikTok oEmbed)
     let optimizedPayload = '';
     let fetchFailed = false;
 
-    try {
-      const response = await fetch(url, {
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-          'Accept-Language': 'es-ES,es;q=0.8,en-US;q=0.5,en;q=0.3',
-        },
-        redirect: 'follow',
-      });
+    if (resolvedUrl.includes('tiktok.com')) {
+      console.log(`[Scraper] Detectada URL de TikTok. Intentando oEmbed API...`);
+      try {
+        const oembedRes = await fetch(`https://www.tiktok.com/oembed?url=${resolvedUrl}`);
+        if (oembedRes.ok) {
+          const oembedData = await oembedRes.json();
+          if (oembedData.title) {
+            optimizedPayload = `Título y Descripción del Vídeo de TikTok:\n${oembedData.title}\n\n`;
+            console.log(`[Scraper] TikTok oEmbed extraído con éxito.`);
+          }
+        }
+      } catch (e) {
+        console.log(`[Scraper] TikTok oEmbed falló:`, e);
+      }
+    }
 
-      if (response.ok) {
-        const html = await response.text();
-        const $ = cheerio.load(html);
+    // 2. Intentar descargar el HTML de la URL si no tenemos datos suficientes
+    if (!optimizedPayload || optimizedPayload.length < 50) {
+      try {
+        const response = await fetch(resolvedUrl, { // Cambiado a usar resolvedUrl
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            'Accept-Language': 'es-ES,es;q=0.8,en-US;q=0.5,en;q=0.3',
+          },
+          redirect: 'follow',
+        });
 
-        // Extraer metadatos y datos embedded de redes sociales
-        const sigiState = $('#SIGI_STATE').html() || '';
-        const universalData = $('#__UNIVERSAL_DATA_FOR_REHYDRATION__').html() || '';
-        const nextData = $('#__NEXT_DATA__').html() || '';
-        const metaDescriptions = $(
-          'meta[name="description"], meta[property="og:description"], meta[property="og:title"], meta[name="twitter:description"]'
-        ).map((_i, el) => $(el).attr('content')).get().join(' | ');
+        if (response.ok) {
+          const html = await response.text();
+          const $ = cheerio.load(html);
 
-        // Buscar JSON-LD (muchos blogs de recetas lo usan)
-        const jsonLd = $('script[type="application/ld+json"]').map((_i, el) => $(el).html()).get().join('\n');
+          const sigiState = $('#SIGI_STATE').html() || '';
+          const universalData = $('#__UNIVERSAL_DATA_FOR_REHYDRATION__').html() || '';
+          const nextData = $('#__NEXT_DATA__').html() || '';
+          const metaDescriptions = $(
+            'meta[name="description"], meta[property="og:description"], meta[property="og:title"], meta[name="twitter:description"]'
+          ).map((_i, el) => $(el).attr('content')).get().join(' | ');
 
-        // Eliminar etiquetas pesadas
-        $('svg, style, img, link, iframe, video, audio, script, noscript, header, footer, nav').remove();
-        const cleanText = $('body').text().replace(/\s+/g, ' ').trim();
+          const jsonLd = $('script[type="application/ld+json"]').map((_i, el) => $(el).html()).get().join('\n');
 
-        // Si hay muy poco contenido de texto, marcar como fetch fallido
-        if (cleanText.length < 100 && !jsonLd && !sigiState && !universalData) {
-          console.log(`[Scraper] HTML demasiado corto (${cleanText.length} chars), usando URL directa`);
-          fetchFailed = true;
-        } else {
-          optimizedPayload = `
+          $('svg, style, img, link, iframe, video, audio, script, noscript, header, footer, nav').remove();
+          const cleanText = $('body').text().replace(/\\s+/g, ' ').trim();
+
+          if (cleanText.length < 100 && !jsonLd && !sigiState && !universalData) {
+            console.log(`[Scraper] HTML demasiado corto, se marcará como fallido para usar Google Search.`);
+            fetchFailed = true;
+          } else {
+            optimizedPayload = `
 Metadatos: ${metaDescriptions}
 
 JSON-LD (datos estructurados):
@@ -68,16 +92,18 @@ ${sigiState.substring(0, 20000)}
 ${universalData.substring(0, 20000)}
 ${nextData.substring(0, 10000)}
 `;
-          console.log(`[Scraper] HTML procesado: ${cleanText.length} chars de texto, ${jsonLd.length} chars de JSON-LD`);
+          }
+        } else {
+          console.log(`[Scraper] Fetch falló con status ${response.status}`);
+          fetchFailed = true;
         }
-      } else {
-        console.log(`[Scraper] Fetch falló con status ${response.status}`);
+      } catch (fetchError) {
+        console.log(`[Scraper] Fetch error: ${fetchError}`);
         fetchFailed = true;
       }
-    } catch (fetchError) {
-      console.log(`[Scraper] Fetch error: ${fetchError}`);
-      fetchFailed = true;
     }
+
+
 
     // 2. Construir prompt según si tenemos HTML o no
     let prompt: string;
@@ -85,12 +111,13 @@ ${nextData.substring(0, 10000)}
     if (fetchFailed || !optimizedPayload) {
       // Modo "URL directa": pedimos a Gemini que use su conocimiento
       prompt = `
-Eres un chef profesional. El usuario quiere guardar la receta de este enlace: ${url}
+Eres un chef profesional. El usuario quiere guardar la receta de este enlace: ${resolvedUrl}
 
 No he podido descargar el contenido de la página porque es una red social (TikTok, Instagram, etc.) que bloquea el acceso.
 
 INSTRUCCIONES:
-- Si reconoces este enlace o sabes qué receta es por el contexto de la URL, extrae los datos.
+- USA la herramienta de búsqueda de Google para buscar esta URL o el vídeo y encontrar la receta completa.
+- Busca el título del vídeo, los ingredientes y los pasos de preparación.
 - Si NO puedes determinar la receta, devuelve TODOS los campos vacíos. NUNCA inventes una receta aleatoria.
 
 Devuelve ÚNICAMENTE un JSON válido (sin markdown, sin backticks):
@@ -141,15 +168,29 @@ ${optimizedPayload}
 `;
     }
 
-    console.log(`[Scraper] Enviando prompt a Gemini (modo: ${fetchFailed ? 'URL directa' : 'HTML'})...`);
+    console.log(`[Scraper] Enviando prompt a Gemini (modo: ${fetchFailed ? 'URL directa + googleSearch' : 'HTML'})...`);
 
-    const chatResponse = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
-      contents: prompt,
-      config: {
-        responseMimeType: 'application/json',
-      }
-    });
+    let chatResponse;
+
+    if (fetchFailed || !optimizedPayload) {
+      // Modo con Google Search: Gemini busca la receta en internet
+      chatResponse = await ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: prompt,
+        config: {
+          tools: [{ googleSearch: {} }],
+        }
+      });
+    } else {
+      // Modo HTML: tenemos contenido, no necesita buscar
+      chatResponse = await ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: prompt,
+        config: {
+          responseMimeType: 'application/json',
+        }
+      });
+    }
 
     const text = chatResponse.text;
     if (!text) {
@@ -157,8 +198,21 @@ ${optimizedPayload}
     }
 
     console.log(`[Scraper] Respuesta de Gemini recibida (${text.length} chars)`);
+    console.log(`[Scraper] Respuesta: ${text.substring(0, 500)}`);
 
-    const parsedData = JSON.parse(text);
+    // Limpiar respuesta: quitar backticks de markdown si los hay
+    let cleanJson = text.trim();
+    if (cleanJson.startsWith('```json')) {
+      cleanJson = cleanJson.slice(7);
+    } else if (cleanJson.startsWith('```')) {
+      cleanJson = cleanJson.slice(3);
+    }
+    if (cleanJson.endsWith('```')) {
+      cleanJson = cleanJson.slice(0, -3);
+    }
+    cleanJson = cleanJson.trim();
+
+    const parsedData = JSON.parse(cleanJson);
     return NextResponse.json(parsedData);
 
   } catch (error: any) {
