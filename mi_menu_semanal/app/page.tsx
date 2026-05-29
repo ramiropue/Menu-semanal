@@ -39,13 +39,13 @@ export default async function Home() {
   }));
 
   return (
-    <>
+    <div className="h-full w-full overflow-y-auto flex flex-col bg-background relative">
       <Header />
-      <main className="flex-1 overflow-y-auto w-full max-w-7xl mx-auto px-6 pt-8 pb-32 md:pb-12">
+      <main className="flex-1 w-full max-w-7xl mx-auto px-6 pt-8 pb-32 md:pb-12">
         <HomeContent initialCategories={categories} initialRecipes={recipes} />
       </main>
       <BottomNav />
       <FAB />
-    </>
+    </div>
   );
 }

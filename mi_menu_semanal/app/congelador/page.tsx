@@ -82,7 +82,7 @@ export default function CongeladorPage() {
   const filteredItems = filter === "Todos" ? items : items.filter(item => item.location === filter);
 
   return (
-    <div className="bg-[#F6F9FC] min-h-screen pb-32 md:pb-12 font-plus-jakarta text-[#2A4B4C]">
+    <div className="h-full w-full overflow-y-auto bg-[#F6F9FC] pb-32 md:pb-12 font-plus-jakarta text-[#2A4B4C] relative">
       <Header />
       
       <main className="px-4 md:px-6 pt-10 md:pt-12 max-w-7xl mx-auto relative z-10">
