@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useRef } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useRef, useEffect, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Header } from "@/components/ui/Header";
 import { BottomNav } from "@/components/ui/BottomNav";
 import { supabase } from "@/lib/supabase";
@@ -9,8 +9,10 @@ import { supabase } from "@/lib/supabase";
 type Ingredient = { id: string; quantity: string; name: string };
 type Step = { id: string; text: string; image?: File | null };
 
-export default function NewRecipePage() {
+function RecipeForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const editId = searchParams.get('edit');
   
   // States
   const [title, setTitle] = useState("");
@@ -38,6 +40,85 @@ export default function NewRecipePage() {
     "Ensaladas": "6",
     "Postres": "7",
   };
+  
+  const reverseCategoryMap: Record<string, string> = {
+    "2": "Entrantes",
+    "3": "Desayuno",
+    "4": "Carne",
+    "5": "Pescado",
+    "6": "Ensaladas",
+    "7": "Postres",
+  };
+
+  const [isEditing, setIsEditing] = useState(false);
+  const [isLoadingRecipe, setIsLoadingRecipe] = useState(false);
+
+  // Cargar datos si estamos editando
+  useEffect(() => {
+    if (editId) {
+      setIsEditing(true);
+      setIsLoadingRecipe(true);
+      
+      const loadRecipe = async () => {
+        try {
+          const { data: recipe, error } = await supabase
+            .from('recipes')
+            .select('*')
+            .eq('id', editId)
+            .single();
+            
+          if (error) throw error;
+          
+          if (recipe) {
+            setTitle(recipe.title || "");
+            setTime(recipe.time || "");
+            setCategory(reverseCategoryMap[recipe.category_id] || "Entrantes");
+            setTags(recipe.tags || ["Mediterránea"]);
+            
+            // Parsear chef_tips si es JSON
+            try {
+              if (recipe.chef_tips && recipe.chef_tips.startsWith('{')) {
+                const parsedTips = JSON.parse(recipe.chef_tips);
+                setChefTips(parsedTips.text || "");
+                setImportUrl(parsedTips.url || "");
+              } else if (recipe.chef_tips && recipe.chef_tips.includes("Enlace original: ")) {
+                const parts = recipe.chef_tips.split("Enlace original: ");
+                setChefTips(parts[0].trim());
+                setImportUrl(parts[1].trim());
+              } else {
+                setChefTips(recipe.chef_tips || "");
+              }
+            } catch (e) {
+              setChefTips(recipe.chef_tips || "");
+            }
+            
+            if (recipe.ingredients && recipe.ingredients.length > 0) {
+              setIngredients(recipe.ingredients.map((ing: any, i: number) => ({
+                id: Date.now().toString() + i,
+                quantity: ing.cantidad || "",
+                name: ing.ingrediente || ""
+              })));
+            }
+            
+            if (recipe.steps && recipe.steps.length > 0) {
+              setSteps(recipe.steps.map((step: any, i: number) => ({
+                id: Date.now().toString() + i,
+                text: step.description || "",
+                image: null // We don't fetch image blobs, user must re-upload if changing
+              })));
+            }
+          }
+        } catch (error) {
+          console.error("Error al cargar receta para edición:", error);
+          alert("No se pudo cargar la receta para editar.");
+        } finally {
+          setIsLoadingRecipe(false);
+        }
+      };
+      
+      loadRecipe();
+    }
+  }, [editId]);
 
   // Ingredient Handlers
   const addIngredient = () => setIngredients([...ingredients, { id: Date.now().toString(), quantity: "", name: "" }]);
@@ -132,10 +213,9 @@ export default function NewRecipePage() {
         })));
       }
 
-      let newChefTips = data.chefTips || "";
-      newChefTips += newChefTips ? "\n\n" : "";
-      newChefTips += `Enlace original: ${importUrl}`;
-      setChefTips(newChefTips);
+      if (data.chefTips) {
+        setChefTips(data.chefTips);
+      }
 
       alert("¡Receta extraída con éxito! Revisa los datos antes de guardar.");
 
@@ -175,28 +255,53 @@ export default function NewRecipePage() {
           if (s.image) {
             stepImageUrl = await uploadImage(s.image);
           }
+          // Para mantener imágenes antiguas, habría que manejar el estado de la imagen antigua.
+          // Por simplicidad en la edición, si no sube nueva, ignoramos la url (o la perdería si tuvieran).
+          // Asumimos que los pasos son texto principalmente.
           return { step: index + 1, description: s.text, image_url: stepImageUrl };
         })
       );
+      
+      // Guardar chef_tips como JSON para separar la URL original
+      const chefTipsPayload = JSON.stringify({
+        text: chefTips,
+        url: importUrl
+      });
 
       const recipeData = {
-        id: newId,
         title,
         category_id: categoryMap[category] || "2",
         time: time || null,
-        image: coverImageUrl,
         tags,
         type: 'standard',
         ingredients: cleanIngredients,
         steps: cleanSteps,
-        chef_tips: chefTips,
+        chef_tips: chefTipsPayload,
         is_draft: isDraft,
-        is_weekly_favorite: false
       };
 
-      const { error } = await supabase.from('recipes').insert(recipeData);
+      // Si hay coverImage nueva, la incluimos
+      if (coverImage) {
+        (recipeData as any).image = coverImageUrl;
+      } else if (!isEditing) {
+        (recipeData as any).image = coverImageUrl;
+      }
 
-      if (error) throw error;
+      let saveError;
+
+      if (isEditing && editId) {
+        const { error } = await supabase.from('recipes').update(recipeData).eq('id', editId);
+        saveError = error;
+      } else {
+        const newId = Date.now().toString();
+        const insertData = { ...recipeData, id: newId, is_weekly_favorite: false };
+        // Asegurar que image existe para insert
+        if (!insertData.image) insertData.image = "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&q=80&w=800";
+        const { error } = await supabase.from('recipes').insert(insertData);
+        saveError = error;
+      }
+
+      if (saveError) throw saveError;
 
       alert(isDraft ? "Borrador guardado con éxito" : "¡Receta publicada con éxito!");
       router.push('/');
@@ -214,11 +319,21 @@ export default function NewRecipePage() {
       <Header />
       <main className="max-w-7xl mx-auto px-4 pt-8 pb-32 md:pb-12">
         <div className="mb-6">
-          <p className="text-sm font-bold text-red-800 tracking-widest uppercase mb-1">Añade tu próximo éxito</p>
-          <h1 className="text-3xl font-extrabold text-[#0B3B3C]">Añadir Nueva Receta</h1>
+          <p className="text-sm font-bold text-red-800 tracking-widest uppercase mb-1">
+            {isEditing ? "Edición" : "Añade tu próximo éxito"}
+          </p>
+          <h1 className="text-3xl font-extrabold text-[#0B3B3C]">
+            {isEditing ? "Modificar Receta" : "Añadir Nueva Receta"}
+          </h1>
         </div>
 
-        <form className="space-y-6 md:grid md:grid-cols-12 md:gap-8 md:space-y-0" onSubmit={(e) => e.preventDefault()}>
+        {isLoadingRecipe ? (
+          <div className="py-20 flex justify-center items-center flex-col text-[#0B3B3C]">
+            <span className="material-symbols-outlined animate-spin text-4xl mb-4">sync</span>
+            <p className="font-bold">Cargando receta...</p>
+          </div>
+        ) : (
+          <form className="space-y-6 md:grid md:grid-cols-12 md:gap-8 md:space-y-0" onSubmit={(e) => e.preventDefault()}>
           
           {/* LADO IZQUIERDO (Desktop) */}
           <div className="md:col-span-5 space-y-6">
@@ -501,13 +616,22 @@ export default function NewRecipePage() {
               className="flex-[2] bg-[#A74400] text-white font-bold py-4 rounded-xl hover:bg-[#8A3800] transition-colors shadow-md disabled:opacity-50 flex items-center justify-center text-lg"
             >
               {isSubmitting ? <span className="material-symbols-outlined animate-spin mr-2">sync</span> : null}
-              {isSubmitting ? 'Guardando...' : 'Publicar Receta'}
+              {isSubmitting ? 'Guardando...' : (isEditing ? 'Actualizar Receta' : 'Publicar Receta')}
             </button>
           </div>
 
         </form>
+        )}
       </main>
       <BottomNav />
     </>
+  );
+}
+
+export default function NewRecipePage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-[#F6F9FC] flex items-center justify-center"><span className="material-symbols-outlined animate-spin text-[#0B3B3C] text-4xl">sync</span></div>}>
+      <RecipeForm />
+    </Suspense>
   );
 }

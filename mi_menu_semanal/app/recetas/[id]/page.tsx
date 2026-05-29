@@ -3,6 +3,7 @@ import { BottomNav } from "@/components/ui/BottomNav";
 import { supabase } from "@/lib/supabase";
 import { notFound } from "next/navigation";
 import Link from "next/link";
+import { RecipeActions } from "@/components/recipes/RecipeActions";
 
 export const dynamic = 'force-dynamic';
 
@@ -23,6 +24,23 @@ export default async function RecipeDetailPage({ params }: { params: Promise<{ i
   // Parse JSONB columns
   const ingredients = recipe.ingredients || [];
   const steps = recipe.steps || [];
+
+  let chefTipsText = recipe.chef_tips || "";
+  let sourceUrl = "";
+  
+  try {
+    if (recipe.chef_tips && recipe.chef_tips.startsWith('{')) {
+      const parsedTips = JSON.parse(recipe.chef_tips);
+      chefTipsText = parsedTips.text || "";
+      sourceUrl = parsedTips.url || "";
+    } else if (recipe.chef_tips && recipe.chef_tips.includes("Enlace original: ")) {
+      const parts = recipe.chef_tips.split("Enlace original: ");
+      chefTipsText = parts[0].trim();
+      sourceUrl = parts[1].trim();
+    }
+  } catch(e) {
+    // Si falla el parseo, mantenemos chefTipsText como está
+  }
 
   return (
     <div className="bg-[#F6F9FC] min-h-screen pb-32 md:pb-12 font-plus-jakarta text-[#2A4B4C]">
@@ -131,26 +149,40 @@ export default async function RecipeDetailPage({ params }: { params: Promise<{ i
           </section>
 
           {/* BOTONES DE ACCIÓN */}
-          <div className="flex flex-col md:flex-row gap-3 md:gap-4 pt-4 md:pt-6 px-1 md:px-2">
-            <button className="flex-1 bg-transparent border-2 border-[#D1E6ED] text-[#0B3B3C] py-3 md:py-4 rounded-xl md:rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-[#D1E6ED]/50 transition-colors text-base md:text-[17px]">
-              <span className="material-symbols-outlined text-[20px] md:text-[22px]">edit</span>
-              Modificar
-            </button>
-            <button className="flex-1 bg-[#FAD9D0] text-[#B93B11] py-3 md:py-4 rounded-xl md:rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-[#F8C8BA] transition-colors text-base md:text-[17px]">
-              <span className="material-symbols-outlined text-[20px] md:text-[22px]">delete</span>
-              Eliminar
-            </button>
-          </div>
+          <RecipeActions recipeId={recipe.id} />
+
+          {/* TARJETA DE VÍDEO ORIGINAL */}
+          {sourceUrl && (
+            <a 
+              href={sourceUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mx-1 md:mx-2 bg-gradient-to-r from-purple-500 to-pink-500 rounded-2xl md:rounded-[24px] p-1 shadow-lg block mt-8 hover:scale-[1.02] transition-transform"
+            >
+              <div className="bg-white/95 backdrop-blur-sm rounded-[20px] p-4 flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 bg-pink-100 rounded-full flex items-center justify-center text-pink-600">
+                    <span className="material-symbols-outlined text-[28px]">play_circle</span>
+                  </div>
+                  <div>
+                    <h3 className="text-base md:text-[18px] font-bold text-[#0B3B3C] leading-tight">Ver Vídeo Original</h3>
+                    <p className="text-xs md:text-sm text-gray-500 mt-0.5">Receta importada</p>
+                  </div>
+                </div>
+                <span className="material-symbols-outlined text-gray-400">arrow_forward_ios</span>
+              </div>
+            </a>
+          )}
 
           {/* CONSEJO DEL CHEF */}
-          {recipe.chef_tips && (
-            <section className="mx-1 md:mx-2 bg-[#FFF5F0] rounded-2xl md:rounded-[24px] p-6 md:p-8 border-[2px] border-dashed border-[#ECAE96] relative mt-8 md:mt-10">
+          {chefTipsText && (
+            <section className="mx-1 md:mx-2 bg-[#FFF5F0] rounded-2xl md:rounded-[24px] p-6 md:p-8 border-[2px] border-dashed border-[#ECAE96] relative mt-6">
               <div className="absolute -top-4 left-4 md:left-6 bg-[#FFF5F0] px-2">
                 <span className="material-symbols-outlined text-[#B93B11] text-[24px] md:text-[32px]">lightbulb</span>
               </div>
               <h3 className="text-base md:text-[19px] font-bold text-[#0B3B3C] italic mb-2 md:mb-3 mt-1">Consejo del Chef</h3>
               <p className="text-[#B93B11] text-sm md:text-[18px] leading-[1.6]">
-                {recipe.chef_tips}
+                {chefTipsText}
               </p>
             </section>
           )}

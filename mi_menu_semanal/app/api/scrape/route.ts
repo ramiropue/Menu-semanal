@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server';
 import { GoogleGenAI } from '@google/genai';
+import * as cheerio from 'cheerio';
 
 // Initialize the Google Gen AI SDK
-// The SDK will automatically pick up the GEMINI_API_KEY environment variable if instantiated without arguments,
-// but we pass it explicitly just in case.
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
+// Se instancia dentro de POST para que lea correctamente .env.local sin necesidad de reiniciar el servidor tras cambios
+// const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
 
 export async function POST(request: Request) {
   try {
@@ -17,6 +17,8 @@ export async function POST(request: Request) {
     if (!process.env.GEMINI_API_KEY) {
       return NextResponse.json({ error: 'La clave GEMINI_API_KEY no está configurada en .env.local' }, { status: 500 });
     }
+
+    const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
     // 1. Descargar el HTML de la URL
     const response = await fetch(url, {
@@ -33,17 +35,39 @@ export async function POST(request: Request) {
 
     const html = await response.text();
     
-    // Limitamos a los primeros 2,000,000 caracteres para asegurar que entra todo el HTML 
-    // pero sin sobrepasar los límites de Gemini 1.5 Flash (1M tokens).
-    // Muchas webs pesadas como TikTok o Instagram tienen los datos al final de la página.
-    const truncatedHtml = html.substring(0, 2000000);
+    // 2. Limpiar el HTML con Cheerio para reducir drásticamente el uso de Tokens y evitar errores 429
+    const $ = cheerio.load(html);
+    
+    // Rescatar JSON scripts importantes de TikTok o Instagram
+    const sigiState = $('#SIGI_STATE').html() || '';
+    const universalData = $('#__UNIVERSAL_DATA_FOR_REHYDRATION__').html() || '';
+    const metaDescriptions = $('meta[name="description"], meta[property="og:description"]').map((i, el) => $(el).attr('content')).get().join(' | ');
+    
+    // Eliminar etiquetas pesadas que no aportan texto útil
+    $('svg, style, img, link, iframe, video, audio, script, noscript').remove();
+    const cleanText = $('body').text().replace(/\\s+/g, ' ').trim();
+
+    // Crear un payload muy comprimido
+    const optimizedPayload = `
+Metadatos: ${metaDescriptions}
+
+Texto visible:
+${cleanText.substring(0, 15000)}
+
+Datos de red social:
+${sigiState.substring(0, 30000)}
+${universalData.substring(0, 30000)}
+`;
 
     // 2. Extraer datos con Gemini
     const prompt = `
 Eres un chef profesional y experto analista. Tu tarea es extraer la receta completa de la siguiente página web (HTML parcial). 
-En sitios como TikTok o Instagram, la receta suele estar escrita como un bloque de texto caótico en la descripción del vídeo.
+En sitios como TikTok o Instagram, la receta suele estar escrita como un bloque de texto caótico en la descripción del vídeo o en metadatos.
 
-INSTRUCCIONES OBLIGATORIAS:
+INSTRUCCIONES CRÍTICAS ANTI-ALUCINACIÓN:
+Si el texto HTML proporcionado es solo una página de inicio de sesión (Login), una página de error, o NO contiene absolutamente ninguna referencia a una receta, comida o ingredientes reales, DEBES devolver un JSON con todos los campos vacíos (arrays vacíos, título vacío). NUNCA inventes una receta aleatoria (como tostadas de aguacate) si no está en el texto.
+
+INSTRUCCIONES OBLIGATORIAS SI HAY RECETA:
 1. INGREDIENTES: Separa SIEMPRE la cantidad del nombre. Si el texto no menciona la cantidad exacta (ej: "echas un poco de sal"), pon "Al gusto", "Una pizca" o deduce una cantidad lógica. Nunca dejes la cantidad vacía.
 2. PASOS: Si la receta está explicada en un solo párrafo (ej: "mezclar y freír"), DEBES separarlo y redactarlo en varios pasos claros y lógicos. NUNCA devuelvas un array de pasos vacío si has encontrado ingredientes.
 3. CONSEJOS (chefTips): Extrae cualquier truco mencionado (ej: "horno precalentado", "usa aceite de oliva"). Si el autor original no da ningún consejo, inventa TÚ un consejo profesional que mejore esta receta específica.
@@ -62,9 +86,9 @@ Devuelve el resultado en formato JSON ESTRICTO, sin markdown:
   "chefTips": "Consejo profesional o extraído del autor..."
 }
 
-Contenido HTML a analizar:
+Contenido a analizar:
 ---
-${truncatedHtml}
+${optimizedPayload}
 ---
 `;
 
@@ -86,6 +110,15 @@ ${truncatedHtml}
 
   } catch (error: any) {
     console.error("Scraping error:", error);
-    return NextResponse.json({ error: error.message || 'Error desconocido al analizar la receta' }, { status: 500 });
+    
+    // Controlar el error de límite de cuota (429) explícitamente
+    const errorMessage = error.message || '';
+    if (errorMessage.includes('429') || errorMessage.includes('RESOURCE_EXHAUSTED')) {
+      return NextResponse.json({ 
+        error: 'Has superado el límite de lecturas por minuto gratuito de Gemini. Espera 1 minuto e inténtalo de nuevo.' 
+      }, { status: 429 });
+    }
+
+    return NextResponse.json({ error: errorMessage || 'Error desconocido al analizar la receta' }, { status: 500 });
   }
 }
