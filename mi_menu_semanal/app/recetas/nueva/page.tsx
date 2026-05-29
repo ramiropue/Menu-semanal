@@ -268,7 +268,7 @@ function RecipeForm() {
         url: importUrl
       });
 
-      const recipeData = {
+      const recipeData: any = {
         title,
         category_id: categoryMap[category] || "2",
         time: time || null,
