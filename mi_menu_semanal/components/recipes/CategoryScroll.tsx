@@ -19,7 +19,7 @@ export function CategoryScroll({
           <button
             key={category.id}
             onClick={() => onCategoryClick?.(category.id)}
-            className="flex-shrink-0 flex flex-col items-center gap-1.5 md:gap-2 w-[52px] md:w-24 group"
+            className="flex-shrink-0 flex flex-col items-center gap-1.5 md:gap-2 w-[52px] md:w-24 group cursor-pointer"
           >
             <div
               className={`w-[46px] h-[46px] md:w-[72px] md:h-[72px] rounded-[14px] md:rounded-[20px] flex items-center justify-center transition-all active:scale-95 ${

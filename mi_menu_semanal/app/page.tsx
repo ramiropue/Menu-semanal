@@ -10,7 +10,8 @@ export const dynamic = 'force-dynamic';
 export default async function Home() {
   // Categorías fijas sin necesidad de usar la base de datos
   const categories: Category[] = [
-    { id: '1', name: 'Favoritas', icon: 'favorite', isActive: true },
+    { id: '0', name: 'Todas', icon: 'grid_view' },
+    { id: '1', name: 'Favoritas', icon: 'favorite' },
     { id: '2', name: 'Entrantes', icon: 'restaurant' },
     { id: '3', name: 'Desayuno', icon: 'breakfast_dining' },
     { id: '4', name: 'Carne', icon: 'set_meal' },

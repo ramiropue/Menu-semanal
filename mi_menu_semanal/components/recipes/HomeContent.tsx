@@ -59,11 +59,15 @@ export function HomeContent({
   // Categorías con estado activo actualizado
   const categoriesWithActiveState = initialCategories.map(cat => ({
     ...cat,
-    isActive: cat.id === activeCategoryId
+    isActive: cat.id === '0' ? activeCategoryId === "" : cat.id === activeCategoryId
   }));
 
   const handleCategoryClick = (id: string) => {
-    // Si se hace clic en la misma categoría, la deseleccionamos
+    if (id === '0') {
+      setActiveCategoryId("");
+      return;
+    }
+    // Si se hace clic en la misma categoría, la deseleccionamos (vuelve a 'Todas')
     setActiveCategoryId(prev => prev === id ? "" : id);
   };
 
