@@ -315,9 +315,9 @@ function RecipeForm() {
   };
 
   return (
-    <>
+    <div className="bg-[#F6F9FC] flex-1 overflow-y-auto w-full h-full pb-32 md:pb-12 font-plus-jakarta flex flex-col">
       <Header />
-      <main className="max-w-7xl mx-auto px-4 pt-8 pb-32 md:pb-12">
+      <main className="max-w-7xl mx-auto px-4 pt-8 pb-32 md:pb-12 flex-1 w-full flex flex-col">
         <div className="mb-6">
           <p className="text-sm font-bold text-red-800 tracking-widest uppercase mb-1">
             {isEditing ? "Edición" : "Añade tu próximo éxito"}
@@ -624,7 +624,7 @@ function RecipeForm() {
         )}
       </main>
       <BottomNav />
-    </>
+    </div>
   );
 }
 

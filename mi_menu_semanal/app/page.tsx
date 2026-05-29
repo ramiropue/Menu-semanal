@@ -40,7 +40,7 @@ export default async function Home() {
   return (
     <>
       <Header />
-      <main className="max-w-7xl mx-auto px-6 pt-8 pb-32 md:pb-12 w-full overflow-hidden">
+      <main className="flex-1 overflow-y-auto w-full max-w-7xl mx-auto px-6 pt-8 pb-32 md:pb-12">
         <HomeContent initialCategories={categories} initialRecipes={recipes} />
       </main>
       <BottomNav />

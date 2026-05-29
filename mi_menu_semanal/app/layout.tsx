@@ -35,7 +35,7 @@ export default function RootLayout({
           rel="stylesheet"
         />
       </head>
-      <body className="bg-background font-body text-on-background selection:bg-secondary-fixed min-h-full flex flex-col overflow-x-hidden max-w-[100vw]">
+      <body className="bg-background font-body text-on-background selection:bg-secondary-fixed fixed inset-0 w-full h-[100dvh] flex flex-col overflow-hidden">
         {children}
       </body>
     </html>

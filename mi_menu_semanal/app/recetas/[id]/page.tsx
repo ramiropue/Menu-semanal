@@ -43,11 +43,11 @@ export default async function RecipeDetailPage({ params }: { params: Promise<{ i
   }
 
   return (
-    <div className="bg-[#F6F9FC] min-h-screen pb-32 md:pb-12 font-plus-jakarta text-[#2A4B4C]">
+    <div className="bg-[#F6F9FC] flex-1 overflow-y-auto w-full h-full pb-32 md:pb-12 font-plus-jakarta text-[#2A4B4C] flex flex-col">
       <Header />
       
       {/* Centramos el contenido principal para que en pantallas grandes se vea como una tarjeta limpia */}
-      <main className="max-w-3xl mx-auto bg-[#F6F9FC] md:shadow-2xl md:min-h-screen relative">
+      <main className="max-w-4xl mx-auto w-full flex-1 flex flex-col bg-[#F6F9FC] md:shadow-2xl md:min-h-screen relative">
         
         {/* HERO SECTION */}
         <div className="relative w-full h-[55vh] bg-black md:rounded-t-3xl">
