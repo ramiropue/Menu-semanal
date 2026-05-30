@@ -4,6 +4,7 @@ import { supabase } from "@/lib/supabase";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { RecipeActions } from "@/components/recipes/RecipeActions";
+import { AddIngredientsButton } from "@/components/recipes/AddIngredientsButton";
 
 export const dynamic = 'force-dynamic';
 
@@ -116,10 +117,7 @@ export default async function RecipeDetailPage({ params }: { params: Promise<{ i
               )}
             </ul>
             
-            <button className="w-full bg-[#0B3B3C] text-white py-3 md:py-4 rounded-xl md:rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-[#082a2b] transition-colors text-base md:text-[17px] shadow-md">
-              <span className="material-symbols-outlined text-[20px] md:text-[22px]">list_alt</span>
-              Añadir a la lista
-            </button>
+            <AddIngredientsButton ingredients={ingredients} />
           </section>
 
           {/* PREPARACIÓN */}

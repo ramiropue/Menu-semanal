@@ -14,7 +14,7 @@ export function CategoryScroll({
           Explorar Categorías
         </h3>
       </div>
-      <div className="flex justify-between md:justify-center gap-1 md:gap-4 pb-4 px-1 md:px-0 md:flex-wrap w-full">
+      <div className="grid grid-cols-4 sm:flex sm:flex-wrap sm:justify-center gap-2 md:gap-4 pb-4 px-1 md:px-0 w-full justify-items-center">
         {categories.map((category) => (
           <button
             key={category.id}
