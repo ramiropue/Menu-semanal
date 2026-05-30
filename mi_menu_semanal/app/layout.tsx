@@ -17,6 +17,11 @@ const manrope = Manrope({
 export const metadata: Metadata = {
   title: "Mis Recetas - Menú Semanal",
   description: "Encuentra inspiración para tu próxima creación.",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "MiMenú",
+  },
 };
 
 export default function RootLayout({
