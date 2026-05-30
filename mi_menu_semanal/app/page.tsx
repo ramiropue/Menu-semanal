@@ -36,6 +36,7 @@ export default async function Home() {
     servings: rec.servings,
     calories: rec.calories,
     description: rec.description,
+    category_id: rec.category_id,
   }));
 
   return (

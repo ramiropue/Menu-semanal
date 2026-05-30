@@ -27,6 +27,7 @@ function RecipeForm() {
   
   const [importUrl, setImportUrl] = useState("");
   const [isScraping, setIsScraping] = useState(false);
+  const [scrapedImageUrl, setScrapedImageUrl] = useState<string | null>(null);
   
   const [isSubmitting, setIsSubmitting] = useState(false);
   const coverImageInputRef = useRef<HTMLInputElement>(null);
@@ -217,6 +218,21 @@ function RecipeForm() {
         setChefTips(data.chefTips);
       }
 
+      if (data.imageUrl && data.imageUrl.startsWith('http')) {
+        setScrapedImageUrl(data.imageUrl);
+        try {
+          // Attempt to fetch the image to use as a File object, bypassing CORS issues by routing through a proxy if needed.
+          // For simplicity we try to fetch directly, if it fails due to CORS, it fails silently.
+          const imgRes = await fetch(data.imageUrl);
+          const blob = await imgRes.blob();
+          const ext = data.imageUrl.split('.').pop()?.split('?')[0] || 'jpg';
+          const file = new File([blob], `portada-extraida.${ext}`, { type: blob.type });
+          setCoverImage(file);
+        } catch (e) {
+          console.warn("No se pudo descargar la imagen de portada automáticamente:", e);
+        }
+      }
+
       alert("¡Receta extraída con éxito! Revisa los datos antes de guardar.");
 
     } catch (error: any) {
@@ -236,7 +252,7 @@ function RecipeForm() {
 
     setIsSubmitting(true);
     try {
-      let coverImageUrl = "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&q=80&w=800"; // default placeholder
+      let coverImageUrl = scrapedImageUrl || "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&q=80&w=800"; // default placeholder
       
       if (coverImage) {
         coverImageUrl = await uploadImage(coverImage);
@@ -280,8 +296,8 @@ function RecipeForm() {
         is_draft: isDraft,
       };
 
-      // Si hay coverImage nueva, la incluimos
-      if (coverImage) {
+      // Si hay coverImage nueva o si venía del scraping, la incluimos
+      if (coverImage || scrapedImageUrl) {
         (recipeData as any).image = coverImageUrl;
       } else if (!isEditing) {
         (recipeData as any).image = coverImageUrl;

@@ -29,6 +29,7 @@ export async function POST(request: Request) {
     // 1. Obtener datos con APIs específicas (ej: TikTok oEmbed)
     let optimizedPayload = '';
     let fetchFailed = false;
+    let extractedImageUrl = '';
 
     if (resolvedUrl.includes('tiktok.com')) {
       console.log(`[Scraper] Detectada URL de TikTok. Intentando oEmbed API...`);
@@ -39,6 +40,9 @@ export async function POST(request: Request) {
           if (oembedData.title) {
             optimizedPayload = `Título y Descripción del Vídeo de TikTok:\n${oembedData.title}\n\n`;
             console.log(`[Scraper] TikTok oEmbed extraído con éxito.`);
+            if (oembedData.thumbnail_url) {
+              extractedImageUrl = oembedData.thumbnail_url;
+            }
           }
         }
       } catch (e) {
@@ -68,6 +72,8 @@ export async function POST(request: Request) {
           const metaDescriptions = $(
             'meta[name="description"], meta[property="og:description"], meta[property="og:title"], meta[name="twitter:description"]'
           ).map((_i, el) => $(el).attr('content')).get().join(' | ');
+
+          extractedImageUrl = $('meta[property="og:image"]').attr('content') || $('meta[name="twitter:image"]').attr('content') || '';
 
           const jsonLd = $('script[type="application/ld+json"]').map((_i, el) => $(el).html()).get().join('\n');
 
@@ -131,7 +137,8 @@ Devuelve ÚNICAMENTE un JSON válido (sin markdown, sin backticks):
     "Paso 1...",
     "Paso 2..."
   ],
-  "chefTips": "Consejo profesional..."
+  "chefTips": "Consejo profesional...",
+  "imageUrl": "URL de la imagen (opcional)"
 }
 `;
     } else {
@@ -158,7 +165,8 @@ Devuelve ÚNICAMENTE un JSON válido (sin markdown, sin backticks):
     "Paso 1...",
     "Paso 2..."
   ],
-  "chefTips": "Consejo profesional..."
+  "chefTips": "Consejo profesional...",
+  "imageUrl": "URL de la imagen (opcional)"
 }
 
 Contenido a analizar:
@@ -213,6 +221,12 @@ ${optimizedPayload}
     cleanJson = cleanJson.trim();
 
     const parsedData = JSON.parse(cleanJson);
+    
+    // Inyectar la imagen extraída si Gemini no encontró una
+    if (!parsedData.imageUrl && extractedImageUrl) {
+      parsedData.imageUrl = extractedImageUrl;
+    }
+    
     return NextResponse.json(parsedData);
 
   } catch (error: any) {

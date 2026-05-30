@@ -1,14 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { Header } from "@/components/ui/Header";
 import { BottomNav } from "@/components/ui/BottomNav";
 
-export default function CongeladorPage() {
-  const [filter, setFilter] = useState("Todos");
-  
-  const [items, setItems] = useState([
+  const DEFAULT_ITEMS = [
     {
       id: 1,
       title: "Lasaña de Carne",
@@ -63,23 +60,58 @@ export default function CongeladorPage() {
       warning: "Larga duración",
       warningColor: "text-gray-500"
     }
-  ]);
+  ];
+
+export default function CongeladorPage() {
+  const [filter, setFilter] = useState("Todos");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [items, setItems] = useState<any[]>([]);
+
+  useEffect(() => {
+    const saved = localStorage.getItem('congelador_items');
+    if (saved) {
+      setItems(JSON.parse(saved));
+    } else {
+      setItems(DEFAULT_ITEMS);
+      localStorage.setItem('congelador_items', JSON.stringify(DEFAULT_ITEMS));
+    }
+  }, []);
 
   const updateCount = (id: number, delta: number) => {
-    setItems(items.map(item => {
-      if (item.id === id) {
-        const newCount = Math.max(0, item.count + delta);
-        return { ...item, count: newCount };
-      }
-      return item;
-    }));
+    setItems(prevItems => {
+      const newItems = prevItems.map(item => {
+        if (item.id === id) {
+          return { ...item, count: Math.max(0, item.count + delta) };
+        }
+        return item;
+      });
+      localStorage.setItem('congelador_items', JSON.stringify(newItems));
+      return newItems;
+    });
   };
 
   const updateDate = (id: number, newDate: string) => {
-    setItems(items.map(item => item.id === id ? { ...item, date: newDate } : item));
+    setItems(prevItems => {
+      const newItems = prevItems.map(item => item.id === id ? { ...item, date: newDate } : item);
+      localStorage.setItem('congelador_items', JSON.stringify(newItems));
+      return newItems;
+    });
   };
 
-  const filteredItems = filter === "Todos" ? items : items.filter(item => item.location === filter);
+  const deleteItem = (id: number) => {
+    setItems(prevItems => {
+      const newItems = prevItems.filter(item => item.id !== id);
+      localStorage.setItem('congelador_items', JSON.stringify(newItems));
+      return newItems;
+    });
+  };
+
+  const filteredItems = items.filter(item => {
+    const matchesLocation = filter === "Todos" || item.location === filter;
+    const term = searchQuery.toLowerCase();
+    const matchesSearch = item.title.toLowerCase().includes(term) || item.subtitle.toLowerCase().includes(term);
+    return matchesLocation && matchesSearch;
+  });
 
   return (
     <div className="h-full w-full overflow-y-auto bg-[#F6F9FC] pb-32 md:pb-12 font-plus-jakarta text-[#2A4B4C] relative">
@@ -89,6 +121,28 @@ export default function CongeladorPage() {
         <h1 className="text-3xl md:text-[42px] lg:text-5xl font-black text-[#0B3B3C] font-headline tracking-tight leading-none mb-6 md:mb-10 text-center">
           Mis <span className="text-[#B93B11]">Congeladores</span>
         </h1>
+
+        {/* Buscador */}
+        <div className="relative mb-6 max-w-xl mx-auto group">
+          <span className="material-symbols-outlined absolute left-4 md:left-5 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-[#B93B11] transition-colors text-[22px] md:text-[24px]">
+            search
+          </span>
+          <input 
+            type="text" 
+            placeholder="Buscar por nombre, tipo..." 
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full bg-white border-2 border-gray-100 rounded-2xl py-3.5 md:py-4 pl-12 md:pl-14 pr-4 md:pr-6 text-[#0B3B3C] text-[15px] md:text-[16px] font-bold outline-none focus:border-[#B93B11] focus:ring-4 focus:ring-[#B93B11]/10 transition-all shadow-sm placeholder:text-gray-400 placeholder:font-medium"
+          />
+          {searchQuery && (
+            <button 
+              onClick={() => setSearchQuery("")}
+              className="absolute right-4 top-1/2 -translate-y-1/2 bg-gray-100 w-6 h-6 rounded-full flex items-center justify-center text-gray-500 hover:bg-gray-200 hover:text-gray-700 transition-colors"
+            >
+              <span className="material-symbols-outlined text-[14px] font-bold">close</span>
+            </button>
+          )}
+        </div>
 
         {/* Filtros */}
         <div className="flex justify-center gap-4 overflow-x-auto hide-scrollbar mb-10 pb-2 -mx-6 px-6 md:mx-0 md:px-0">
@@ -140,6 +194,11 @@ export default function CongeladorPage() {
                  <div className="bg-[#F6F9FC] rounded-2xl p-2.5 flex justify-between items-center mb-4">
                    <span className="text-[#0B3B3C] font-bold text-xs md:text-sm pl-1">{item.unitLabel}</span>
                    <div className="flex items-center gap-2 md:gap-3">
+                     {item.count === 0 && (
+                       <button onClick={() => deleteItem(item.id)} className="w-8 h-8 md:w-9 md:h-9 bg-[#FAD9D0] rounded-full flex items-center justify-center shadow-sm text-[#B93B11] hover:bg-[#f6c6b9] active:scale-95 transition-all" title="Eliminar">
+                         <span className="material-symbols-outlined font-black text-[18px] md:text-[20px]">delete</span>
+                       </button>
+                     )}
                      <button onClick={() => updateCount(item.id, -1)} className="w-8 h-8 md:w-9 md:h-9 bg-white rounded-full flex items-center justify-center shadow-sm text-[#0B3B3C] hover:bg-gray-50 active:scale-95 transition-all">
                        <span className="material-symbols-outlined font-black text-[18px] md:text-[20px]">remove</span>
                      </button>

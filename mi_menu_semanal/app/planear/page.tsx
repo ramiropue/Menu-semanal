@@ -14,7 +14,9 @@ export default async function PlannerPage() {
     type: rec.type,
     tags: rec.tags || [],
     time: rec.time,
-    calories: rec.calories
+    calories: rec.calories,
+    category_id: rec.category_id,
+    ingredients: rec.ingredients
   }));
 
   return <PlannerClient recipes={recipes} />;

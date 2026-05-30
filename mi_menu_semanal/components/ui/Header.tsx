@@ -9,7 +9,7 @@ export function Header() {
   const navItems = [
     { href: "/", label: "Recetas" },
     { href: "/planear", label: "Menú semanal" },
-    { href: "/lista", label: "Lista de la compra" }, // Placeholder
+    { href: "/compra", label: "Lista de la compra" },
     { href: "/congelador", label: "Congelador" },
   ];
 

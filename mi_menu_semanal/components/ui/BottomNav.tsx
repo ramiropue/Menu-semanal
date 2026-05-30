@@ -9,7 +9,7 @@ export function BottomNav() {
   const navItems = [
     { href: "/", icon: "restaurant", label: "Recetas", fill: true },
     { href: "/planear", icon: "calendar_today", label: "Menú semanal" },
-    { href: "/lista", icon: "shopping_cart", label: "Lista" }, // Placeholder for now
+    { href: "/compra", icon: "shopping_cart", label: "Compra" },
     { href: "/congelador", icon: "ac_unit", label: "Congelador" },
   ];
 

@@ -48,8 +48,7 @@ export function HomeContent({
       if (activeCategory.name === "Favoritas") {
         matchesCategory = recipe.is_favorite === true;
       } else {
-        const catNameLower = activeCategory.name.toLowerCase();
-        matchesCategory = tags.some(tag => tag.toLowerCase().includes(catNameLower));
+        matchesCategory = recipe.category_id === activeCategory.id;
       }
     }
 

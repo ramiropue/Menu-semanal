@@ -18,6 +18,7 @@ export type Recipe = {
   servings?: number;
   calories?: number;
   description?: string;
+  category_id?: string;
 };
 
 export const CATEGORIES: Category[] = [

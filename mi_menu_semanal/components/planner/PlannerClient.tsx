@@ -1,9 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
+import { toPng } from "html-to-image";
+import jsPDF from "jspdf";
 import Link from "next/link";
 import { BottomNav } from "@/components/ui/BottomNav";
 import { Header } from "@/components/ui/Header";
+import { RECIPE_INGREDIENTS, Ingredient } from "@/data/ingredients";
 
 interface Recipe {
   id: string;
@@ -13,15 +16,175 @@ interface Recipe {
   tags: string[];
   time?: string;
   calories?: string;
+  category_id?: string;
+  ingredients?: any[];
 }
 
 interface MealSlot {
-  type: "DESAYUNO" | "ALMUERZO" | "CENA";
+  type: "DESAYUNO" | "COMIDA" | "CENA";
   recipeId: string | null;
 }
 
 export function PlannerClient({ recipes }: { recipes: Recipe[] }) {
+  const [viewMode, setViewMode] = useState<'week' | 'month'>('week');
   const [weekOffset, setWeekOffset] = useState(0);
+  const [monthOffset, setMonthOffset] = useState(0);
+  
+  const [exportAction, setExportAction] = useState<'download' | 'share' | null>(null);
+  const [isExporting, setIsExporting] = useState(false);
+  const printRef = useRef<HTMLDivElement>(null);
+
+  const generatePDF = async (action: 'download' | 'share') => {
+    if (!printRef.current) return;
+    setExportAction(action);
+    setIsExporting(true);
+    
+    // Wait for the DOM to update with the new header
+    await new Promise(resolve => setTimeout(resolve, 200));
+    
+    try {
+      // html2canvas da error con variables modernas (como colores LAB/OKLCH de Tailwind v4)
+      // Usamos html-to-image que usa foreignObject SVG (soporte nativo de renderizado)
+      const imgData = await toPng(printRef.current, { 
+        cacheBust: true, 
+        pixelRatio: 2,
+        backgroundColor: '#F6F9FC',
+        fontEmbedCSS: '', // Evita el error de CORS al intentar leer fuentes externas
+      });
+      
+      // Orientation: landscape ('l') for month view, portrait ('p') for week view
+      const orientation = viewMode === 'month' ? 'l' : 'p';
+      const pdf = new jsPDF(orientation, 'mm', 'a4');
+      
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      
+      // Márgenes físicos en el PDF (en milímetros)
+      const marginX = 15;
+      const marginY = 15;
+      
+      const maxWidth = pageWidth - (marginX * 2);
+      
+      const domWidth = printRef.current.offsetWidth;
+      const domHeight = printRef.current.offsetHeight;
+      const calculatedHeight = (domHeight * maxWidth) / domWidth;
+      
+      // Ajustamos si la altura calculada se pasa del alto de la página
+      const finalWidth = calculatedHeight > (pageHeight - (marginY * 2)) 
+        ? (maxWidth * (pageHeight - (marginY * 2))) / calculatedHeight 
+        : maxWidth;
+      const finalHeight = calculatedHeight > (pageHeight - (marginY * 2)) 
+        ? pageHeight - (marginY * 2) 
+        : calculatedHeight;
+        
+      // Centramos la imagen si el ancho fue reducido para encajar en el alto
+      const offsetX = marginX + (maxWidth - finalWidth) / 2;
+      
+      pdf.addImage(imgData, 'PNG', offsetX, marginY, finalWidth, finalHeight);
+      
+      const pdfBlob = pdf.output('blob');
+      
+      // Restauramos el estado de exportación visual
+      setIsExporting(false);
+      
+      if (action === 'download') {
+        pdf.save('menu_semanal.pdf');
+      } else if (action === 'share') {
+        const file = new File([pdfBlob], 'menu_semanal.pdf', { type: 'application/pdf' });
+        
+        if (navigator.canShare && navigator.canShare({ files: [file] })) {
+          await navigator.share({
+            files: [file],
+            title: 'Menú Semanal',
+            text: 'Aquí tienes la organización del menú.'
+          });
+        } else {
+          alert('Tu navegador no soporta compartir archivos directamente. El PDF se abrirá para que puedas guardarlo o enviarlo.');
+          const pdfUrl = URL.createObjectURL(pdfBlob);
+          window.open(pdfUrl, '_blank');
+        }
+      }
+      
+    } catch (error) {
+      console.error('Error generating PDF', error);
+      alert('Hubo un error al generar el PDF.');
+      setIsExporting(false);
+    } finally {
+      setExportAction(null);
+    }
+  };
+  
+  const normalizeName = (name: string) => {
+    let n = name.toLowerCase().trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    if (n.endsWith("ces")) {
+      n = n.slice(0, -3) + "z"; // nueces -> nuez, luces -> luz
+    } else if (n.endsWith("es") && n.length > 3) {
+      n = n.slice(0, -2);
+    } else if (n.endsWith("s") && n.length > 2) {
+      n = n.slice(0, -1);
+    }
+    return n;
+  };
+
+  const addToShoppingList = () => {
+    const activeDates = viewMode === 'week' 
+      ? currentWeekDays.map(d => d.date) 
+      : currentMonthDays.filter(d => d !== null).map(d => d!.date);
+
+    const saved = localStorage.getItem('shopping_list_items');
+    const currentList: (Ingredient & { checked: boolean })[] = saved ? JSON.parse(saved) : [];
+
+    const map = new Map<string, Ingredient & { checked: boolean }>();
+    currentList.forEach(ing => {
+      const normName = normalizeName(ing.name);
+      const key = `${normName}-${ing.unit}-${ing.category}`;
+      map.set(key, ing);
+    });
+
+    let addedCount = 0;
+    activeDates.forEach(date => {
+      const meals = getMealsForDate(date);
+      meals.forEach(meal => {
+        if (meal.recipeId) {
+          const recipe = recipes.find(r => r.id === meal.recipeId);
+          let ingredients: Ingredient[] = [];
+          if (recipe?.ingredients && recipe.ingredients.length > 0) {
+            ingredients = recipe.ingredients.map(ing => ({
+              name: ing.ingrediente || ing.name,
+              quantity: parseFloat(ing.cantidad || ing.quantity) || 1,
+              unit: ing.unidad || ing.unit || "uds",
+              category: "Otros" as any
+            }));
+          } else if (RECIPE_INGREDIENTS[meal.recipeId]) {
+            ingredients = RECIPE_INGREDIENTS[meal.recipeId];
+          }
+
+          if (ingredients.length > 0) {
+            ingredients.forEach(ing => {
+              addedCount++;
+              const normName = normalizeName(ing.name);
+              const key = `${normName}-${ing.unit}-${ing.category}`;
+              if (map.has(key)) {
+                const existing = map.get(key)!;
+                existing.quantity += ing.quantity;
+              } else {
+                map.set(key, { ...ing, checked: false });
+              }
+            });
+          }
+        }
+      });
+    });
+
+    if (addedCount === 0) {
+      alert("No hay recetas asignadas con ingredientes en la vista actual.");
+      return;
+    }
+
+    const newList = Array.from(map.values());
+    localStorage.setItem('shopping_list_items', JSON.stringify(newList));
+    alert(`¡Se han añadido los ingredientes a tu Lista de la Compra!`);
+  };
   
   // Logic to generate the week's days based on weekOffset
   const getWeekDays = (offset: number) => {
@@ -48,15 +211,51 @@ export function PlannerClient({ recipes }: { recipes: Recipe[] }) {
   const currentWeekDays = getWeekDays(weekOffset);
   const weekRange = `${currentWeekDays[0].dateStr} - ${currentWeekDays[6].dateStr}`;
 
+  const getMonthDays = (offset: number) => {
+    const today = new Date();
+    const firstDay = new Date(today.getFullYear(), today.getMonth() + offset, 1);
+    const lastDay = new Date(today.getFullYear(), today.getMonth() + offset + 1, 0);
+    let firstDayOfWeek = firstDay.getDay() === 0 ? 6 : firstDay.getDay() - 1;
+    const days = [];
+    const monthName = firstDay.toLocaleDateString('es-ES', { month: 'long', year: 'numeric' });
+    
+    for (let i = 0; i < firstDayOfWeek; i++) {
+      days.push(null);
+    }
+    for (let i = 1; i <= lastDay.getDate(); i++) {
+      const currentDate = new Date(firstDay.getFullYear(), firstDay.getMonth(), i);
+      const offsetMs = currentDate.getTimezoneOffset() * 60000;
+      const localDate = new Date(currentDate.getTime() - offsetMs);
+      days.push({
+        dateNumber: i,
+        date: localDate.toISOString().split('T')[0],
+      });
+    }
+    return { days, monthName };
+  };
+
+  const { days: currentMonthDays, monthName } = getMonthDays(monthOffset);
+
   // Mock state for the planned meals (in a real app, this would come from DB based on date)
   const [plannedMeals, setPlannedMeals] = useState<Record<string, MealSlot[]>>({});
+
+  useEffect(() => {
+    const saved = localStorage.getItem('planner_meals');
+    if (saved) {
+      try {
+        setPlannedMeals(JSON.parse(saved));
+      } catch (e) {
+        console.error("Error parsing planned meals from localStorage", e);
+      }
+    }
+  }, []);
 
   // Get meals for a specific date (initialize if empty)
   const getMealsForDate = (date: string): MealSlot[] => {
     if (plannedMeals[date]) return plannedMeals[date];
     return [
       { type: "DESAYUNO", recipeId: null },
-      { type: "ALMUERZO", recipeId: null },
+      { type: "COMIDA", recipeId: null },
       { type: "CENA", recipeId: null }
     ];
   };
@@ -64,9 +263,11 @@ export function PlannerClient({ recipes }: { recipes: Recipe[] }) {
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState<{ date: string, type: string, index: number } | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
 
   const openModal = (date: string, type: string, index: number) => {
     setSelectedSlot({ date, type, index });
+    setSearchQuery("");
     setIsModalOpen(true);
   };
 
@@ -77,33 +278,61 @@ export function PlannerClient({ recipes }: { recipes: Recipe[] }) {
     const newMeals = [...meals];
     newMeals[index] = { ...newMeals[index], recipeId };
     
-    setPlannedMeals({
+    const updatedMeals = {
       ...plannedMeals,
       [date]: newMeals
-    });
+    };
+    
+    setPlannedMeals(updatedMeals);
+    localStorage.setItem('planner_meals', JSON.stringify(updatedMeals));
     setIsModalOpen(false);
   };
 
   // Filtrar recetas para el modal
   const getFilteredRecipes = () => {
     if (!selectedSlot) return [];
-    return recipes.filter(r => 
-      r.type?.toLowerCase() === selectedSlot.type.toLowerCase() || 
-      r.tags?.some(t => t.toLowerCase() === selectedSlot.type.toLowerCase())
-    );
+    
+    // Si hay texto de búsqueda, buscamos en todas las recetas ignorando el filtro inteligente
+    if (searchQuery.trim() !== "") {
+      const q = searchQuery.toLowerCase();
+      return recipes.filter(r => 
+        r.title.toLowerCase().includes(q) || 
+        r.tags?.some(t => t.toLowerCase().includes(q))
+      );
+    }
+    
+    const term = selectedSlot.type.toLowerCase();
+    
+    return recipes.filter(r => {
+      let inTags = r.tags?.some(t => t.toLowerCase().includes(term));
+      let inType = r.type?.toLowerCase() === term;
+      let inCategory = false;
+      
+      // Mapeos inteligentes por categoría
+      // Asumiendo category_id de la BD (1:Favoritas, 2:Entrantes, 3:Desayuno, 4:Carne, 5:Pescado, 6:Ensaladas, 7:Postres)
+      if (term === 'desayuno' && r.category_id === '3') inCategory = true;
+      if (term === 'comida' && ['2', '4', '5', '6'].includes(r.category_id || '')) inCategory = true;
+      if (term === 'cena' && ['2', '5', '6'].includes(r.category_id || '')) inCategory = true;
+      
+      // Ampliación de tags si es "comida" o "cena"
+      if (term === 'comida' && r.tags?.some(t => ['carne', 'pescado', 'fuerte', 'plato principal', 'almuerzo'].includes(t.toLowerCase()))) inTags = true;
+      if (term === 'cena' && r.tags?.some(t => ['ligero', 'pescado', 'ensalada', 'cena'].includes(t.toLowerCase()))) inTags = true;
+
+      return inTags || inType || inCategory;
+    });
   };
 
   const filteredRecipes = getFilteredRecipes();
-  const showFallback = filteredRecipes.length === 0;
+  const showFallback = filteredRecipes.length === 0 && searchQuery.trim() === "";
 
   return (
-    <div className="bg-[#F6F9FC] min-h-screen pb-32 md:pb-12 font-plus-jakarta text-[#2A4B4C]">
+    <div className="bg-[#F6F9FC] h-full w-full overflow-y-auto flex-1 flex flex-col pb-32 md:pb-12 font-plus-jakarta text-[#2A4B4C]">
       
       {/* HEADER SUPERIOR */}
       <Header />
       
       {/* CONTENIDO PRINCIPAL */}
-      <main className="px-6 pt-10 md:pt-12 max-w-3xl mx-auto relative z-10">
+      <main className="px-6 pt-10 md:pt-12 w-full max-w-7xl mx-auto relative z-10">
         
         {/* TITULAR Y SELECTOR DE SEMANA */}
         <div className="mb-8 md:mb-10">
@@ -114,32 +343,137 @@ export function PlannerClient({ recipes }: { recipes: Recipe[] }) {
             Planificador Semanal
           </h1>
           
-          {/* Week Selector */}
+          {/* Selector */}
           <div className="flex items-center justify-between bg-white rounded-2xl p-3 shadow-sm mb-6 border border-[#E2F1F6]">
-            <button onClick={() => setWeekOffset(prev => prev - 1)} className="w-10 h-10 rounded-full bg-[#F6F9FC] flex items-center justify-center text-[#0B3B3C] hover:bg-[#E2F1F6] transition-colors">
+            <button onClick={() => viewMode === 'week' ? setWeekOffset(prev => prev - 1) : setMonthOffset(prev => prev - 1)} className="w-10 h-10 rounded-full bg-[#F6F9FC] flex items-center justify-center text-[#0B3B3C] hover:bg-[#E2F1F6] transition-colors">
               <span className="material-symbols-outlined text-[20px]">chevron_left</span>
             </button>
-            <span className="font-black text-[#0B3B3C] text-[14px] uppercase tracking-wider">
-              {weekRange}
+            <span className="font-black text-[#0B3B3C] text-[14px] uppercase tracking-wider text-center flex-1">
+              {viewMode === 'week' ? weekRange : monthName}
             </span>
-            <button onClick={() => setWeekOffset(prev => prev + 1)} className="w-10 h-10 rounded-full bg-[#F6F9FC] flex items-center justify-center text-[#0B3B3C] hover:bg-[#E2F1F6] transition-colors">
+            <button onClick={() => viewMode === 'week' ? setWeekOffset(prev => prev + 1) : setMonthOffset(prev => prev + 1)} className="w-10 h-10 rounded-full bg-[#F6F9FC] flex items-center justify-center text-[#0B3B3C] hover:bg-[#E2F1F6] transition-colors">
               <span className="material-symbols-outlined text-[20px]">chevron_right</span>
             </button>
           </div>
 
-          <div className="flex gap-2 md:gap-3">
-             <button className="flex-1 md:flex-none justify-center bg-[#0B3B3C] text-white px-4 md:px-5 py-2.5 rounded-xl font-bold flex items-center gap-2 shadow-sm text-sm md:text-[15px] hover:bg-[#082a2b] transition-colors">
-               <span className="material-symbols-outlined text-[18px] md:text-[20px]">share</span>
-               Compartir
-             </button>
-             <button className="bg-[#D1E6ED] text-[#0B3B3C] w-[44px] h-[44px] rounded-xl flex items-center justify-center shadow-sm hover:bg-[#c2dce4] transition-colors shrink-0">
-               <span className="material-symbols-outlined text-[20px]">settings</span>
-             </button>
+          <div className="flex flex-col md:flex-row justify-center items-center gap-4 md:gap-6">
+            <div className="flex bg-[#E2F1F6] rounded-xl p-1 shadow-sm w-full md:w-fit">
+              <button 
+                onClick={() => setViewMode('week')}
+                className={`flex-1 md:flex-none justify-center px-4 md:px-6 py-2 md:py-2.5 rounded-lg font-bold flex items-center gap-2 text-sm md:text-[15px] transition-all ${viewMode === 'week' ? 'bg-white text-[#0B3B3C] shadow-sm' : 'text-[#2A4B4C] hover:bg-[#D1E6ED]'}`}
+              >
+                <span className="material-symbols-outlined text-[18px]">view_agenda</span>
+                Semana
+              </button>
+              <button 
+                onClick={() => setViewMode('month')}
+                className={`flex-1 md:flex-none justify-center px-4 md:px-6 py-2 md:py-2.5 rounded-lg font-bold flex items-center gap-2 text-sm md:text-[15px] transition-all ${viewMode === 'month' ? 'bg-white text-[#0B3B3C] shadow-sm' : 'text-[#2A4B4C] hover:bg-[#D1E6ED]'}`}
+              >
+                <span className="material-symbols-outlined text-[18px]">calendar_month</span>
+                Mes
+              </button>
+            </div>
+
+            <div className="flex w-full md:w-auto gap-2">
+              <button 
+                onClick={addToShoppingList}
+                className="flex-1 md:flex-none bg-[#E2F1F6] text-[#0B3B3C] px-4 py-2.5 rounded-xl font-bold flex justify-center items-center gap-2 text-sm md:text-[14px] hover:bg-[#D1E6ED] transition-colors shadow-sm"
+              >
+                <span className="material-symbols-outlined text-[18px]">add_shopping_cart</span>
+                Añadir a la compra
+              </button>
+              <button 
+                onClick={() => generatePDF('download')}
+                disabled={exportAction !== null}
+                className="flex-1 md:flex-none bg-[#0B3B3C] text-white px-4 py-2.5 rounded-xl font-bold flex justify-center items-center gap-2 text-sm md:text-[14px] hover:bg-[#2A4B4C] transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {exportAction === 'download' ? (
+                  <span className="material-symbols-outlined animate-spin text-[18px]">progress_activity</span>
+                ) : (
+                  <span className="material-symbols-outlined text-[18px]">download</span>
+                )}
+                Descargar
+              </button>
+              <button 
+                onClick={() => generatePDF('share')}
+                disabled={exportAction !== null}
+                className="flex-1 md:flex-none bg-white text-[#0B3B3C] border border-[#0B3B3C]/20 px-4 py-2.5 rounded-xl font-bold flex justify-center items-center gap-2 text-sm md:text-[14px] hover:bg-[#F6F9FC] transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {exportAction === 'share' ? (
+                  <span className="material-symbols-outlined animate-spin text-[18px]">progress_activity</span>
+                ) : (
+                  <span className="material-symbols-outlined text-[18px]">ios_share</span>
+                )}
+                Compartir
+              </button>
+            </div>
           </div>
         </div>
 
-        {/* DIAS DE LA SEMANA */}
-        <div className="space-y-12">
+        {/* CONTENEDOR PARA CAPTURAR EN PDF */}
+        <div ref={printRef} className={`bg-[#F6F9FC] p-2 md:p-4 -mx-2 md:-mx-4 rounded-3xl ${isExporting ? 'px-8 pt-8 pb-12' : ''}`}>
+          
+          {/* CABECERA EXCLUSIVA PARA EL PDF */}
+          {isExporting && (
+            <div className="mb-8 text-center border-b-2 border-gray-200/50 pb-6">
+              <h1 className="text-4xl font-black text-[#0B3B3C] font-headline tracking-tight">Organización del Menú</h1>
+              <p className="text-[#B93B11] font-extrabold text-[14px] tracking-[0.2em] uppercase mt-3">
+                {viewMode === 'week' ? weekRange : monthName}
+              </p>
+            </div>
+          )}
+
+          {/* DIAS DE LA SEMANA / CALENDARIO */}
+          {viewMode === 'month' ? (
+          <div className="bg-white rounded-3xl p-3 md:p-6 shadow-sm border border-[#E2F1F6]">
+            {/* Cabecera días semana */}
+            <div className="grid grid-cols-7 gap-1 md:gap-2 mb-2">
+              {['L', 'M', 'X', 'J', 'V', 'S', 'D'].map(day => (
+                <div key={day} className="text-center font-bold text-[#B93B11] text-[10px] md:text-xs">
+                  {day}
+                </div>
+              ))}
+            </div>
+            {/* Grid del mes */}
+            <div className="grid grid-cols-7 gap-1 md:gap-2">
+              {currentMonthDays.map((day, i) => {
+                if (!day) return <div key={`empty-${i}`} className="h-[60px] md:h-[100px] rounded-xl bg-[#F6F9FC]/50"></div>;
+                
+                const meals = getMealsForDate(day.date);
+                const hasAnyMeal = meals.some(m => m.recipeId);
+                const isToday = day.date === new Date(new Date().getTime() - new Date().getTimezoneOffset() * 60000).toISOString().split('T')[0];
+                
+                return (
+                  <div 
+                    key={day.date} 
+                    className={`h-[65px] md:h-[100px] rounded-xl border p-1 md:p-2 flex flex-col hover:border-[#0B3B3C]/30 transition-colors cursor-pointer group ${isToday ? 'bg-[#FFF5F0] border-[#ECAE96]' : 'bg-[#F6F9FC] border-gray-100'}`}
+                  >
+                    <div className={`text-[10px] md:text-sm font-black mb-0.5 md:mb-1 opacity-80 group-hover:opacity-100 ${isToday ? 'text-[#B93B11]' : 'text-[#0B3B3C]'}`}>{day.dateNumber}</div>
+                    <div className="flex-1 flex flex-col gap-0.5 overflow-hidden">
+                      {meals.map((meal, idx) => {
+                        const recipe = meal.recipeId ? recipes.find(r => r.id === meal.recipeId) : null;
+                        
+                        return (
+                          <div 
+                            key={idx}
+                            onClick={(e) => { e.stopPropagation(); openModal(day.date, meal.type, idx); }}
+                            className={`text-[7px] md:text-[9px] font-bold px-1 py-[2px] rounded md:rounded-md truncate leading-none ${
+                              recipe ? 'bg-[#0B3B3C] text-white' : 'bg-transparent text-gray-400 hover:bg-gray-200/50'
+                            }`}
+                            title={recipe ? recipe.title : `Añadir ${meal.type.toLowerCase()}`}
+                          >
+                            {recipe ? recipe.title : meal.type.substring(0,3)}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-12">
            {currentWeekDays.map((day) => {
              const meals = getMealsForDate(day.date);
              return (
@@ -150,7 +484,7 @@ export function PlannerClient({ recipes }: { recipes: Recipe[] }) {
                  </h2>
                  
                  {/* Lista de comidas */}
-                 <div className="flex flex-col gap-3">
+                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 md:gap-4">
                     {meals.map((meal, index) => {
                       if (meal.recipeId) {
                         // CARTA PLANIFICADA
@@ -202,6 +536,8 @@ export function PlannerClient({ recipes }: { recipes: Recipe[] }) {
              )
            })}
         </div>
+        )}
+        </div>
       </main>
 
       {/* MODAL PARA ELEGIR RECETA */}
@@ -218,9 +554,29 @@ export function PlannerClient({ recipes }: { recipes: Recipe[] }) {
                 <span className="material-symbols-outlined">close</span>
               </button>
             </div>
+            
+            {/* Buscador */}
+            <div className="p-4 border-b border-gray-100 bg-[#F6F9FC]/50">
+              <div className="relative">
+                <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-[20px]">search</span>
+                <input 
+                  type="text" 
+                  placeholder="Buscar cualquier receta..." 
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full bg-white border border-gray-200 rounded-xl py-2.5 pl-10 pr-4 text-sm text-[#0B3B3C] placeholder:text-gray-400 focus:outline-none focus:border-[#B93B11] focus:ring-1 focus:ring-[#B93B11] shadow-sm"
+                />
+                {searchQuery && (
+                  <button onClick={() => setSearchQuery('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                    <span className="material-symbols-outlined text-[18px]">close</span>
+                  </button>
+                )}
+              </div>
+            </div>
+
             <div className="p-4 max-h-[50vh] overflow-y-auto space-y-3 hide-scrollbar">
               
-              {!showFallback && filteredRecipes.map(recipe => (
+              {!showFallback && filteredRecipes.length > 0 && filteredRecipes.map(recipe => (
                 <div key={recipe.id} onClick={() => assignRecipe(recipe.id)} className="bg-white rounded-2xl p-3 flex items-center gap-4 cursor-pointer hover:ring-2 hover:ring-[#B93B11] transition-all shadow-sm">
                   <div className="w-14 h-14 rounded-xl overflow-hidden shrink-0">
                     <img src={recipe.image || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=100&q=80'} className="w-full h-full object-cover" />
@@ -231,6 +587,13 @@ export function PlannerClient({ recipes }: { recipes: Recipe[] }) {
                   </div>
                 </div>
               ))}
+
+              {!showFallback && filteredRecipes.length === 0 && (
+                <div className="text-center py-8 px-2">
+                  <span className="material-symbols-outlined text-[48px] text-gray-300 mb-2">search_off</span>
+                  <p className="text-[#2A4B4C] text-[15px]">No se han encontrado recetas con "{searchQuery}".</p>
+                </div>
+              )}
 
               {showFallback && (
                 <div className="text-center py-4 px-2">
