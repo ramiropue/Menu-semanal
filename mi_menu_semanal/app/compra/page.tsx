@@ -61,7 +61,7 @@ export default function ShoppingListPage() {
   const categories = Object.keys(aggregatedIngredients).sort();
 
   return (
-    <div className="h-full w-full overflow-y-auto bg-[#F6F9FC] pb-32 md:pb-12 font-plus-jakarta text-[#2A4B4C] relative">
+    <div className="h-full w-full overflow-y-auto overflow-x-hidden bg-[#F6F9FC] pb-32 md:pb-12 font-plus-jakarta text-[#2A4B4C] relative">
       <Header />
       
       <main className="px-4 md:px-6 pt-10 md:pt-12 max-w-3xl mx-auto relative z-10">

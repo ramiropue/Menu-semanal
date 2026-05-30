@@ -326,7 +326,7 @@ export function PlannerClient({ recipes }: { recipes: Recipe[] }) {
   const showFallback = filteredRecipes.length === 0 && searchQuery.trim() === "";
 
   return (
-    <div className="bg-[#F6F9FC] h-full w-full overflow-y-auto flex-1 flex flex-col pb-32 md:pb-12 font-plus-jakarta text-[#2A4B4C]">
+    <div className="bg-[#F6F9FC] h-full w-full overflow-y-auto overflow-x-hidden flex-1 flex flex-col pb-32 md:pb-12 font-plus-jakarta text-[#2A4B4C]">
       
       {/* HEADER SUPERIOR */}
       <Header />
@@ -374,10 +374,10 @@ export function PlannerClient({ recipes }: { recipes: Recipe[] }) {
               </button>
             </div>
 
-            <div className="flex w-full md:w-auto gap-2">
+            <div className="flex flex-col sm:flex-row w-full md:w-auto gap-2">
               <button 
                 onClick={addToShoppingList}
-                className="flex-1 md:flex-none bg-[#E2F1F6] text-[#0B3B3C] px-4 py-2.5 rounded-xl font-bold flex justify-center items-center gap-2 text-sm md:text-[14px] hover:bg-[#D1E6ED] transition-colors shadow-sm"
+                className="w-full md:w-auto bg-[#E2F1F6] text-[#0B3B3C] px-4 py-2.5 rounded-xl font-bold flex justify-center items-center gap-2 text-sm md:text-[14px] hover:bg-[#D1E6ED] transition-colors shadow-sm"
               >
                 <span className="material-symbols-outlined text-[18px]">add_shopping_cart</span>
                 Añadir a la compra
@@ -385,7 +385,7 @@ export function PlannerClient({ recipes }: { recipes: Recipe[] }) {
               <button 
                 onClick={() => generatePDF('download')}
                 disabled={exportAction !== null}
-                className="flex-1 md:flex-none bg-[#0B3B3C] text-white px-4 py-2.5 rounded-xl font-bold flex justify-center items-center gap-2 text-sm md:text-[14px] hover:bg-[#2A4B4C] transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full md:w-auto bg-[#0B3B3C] text-white px-4 py-2.5 rounded-xl font-bold flex justify-center items-center gap-2 text-sm md:text-[14px] hover:bg-[#2A4B4C] transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {exportAction === 'download' ? (
                   <span className="material-symbols-outlined animate-spin text-[18px]">progress_activity</span>
@@ -397,7 +397,7 @@ export function PlannerClient({ recipes }: { recipes: Recipe[] }) {
               <button 
                 onClick={() => generatePDF('share')}
                 disabled={exportAction !== null}
-                className="flex-1 md:flex-none bg-white text-[#0B3B3C] border border-[#0B3B3C]/20 px-4 py-2.5 rounded-xl font-bold flex justify-center items-center gap-2 text-sm md:text-[14px] hover:bg-[#F6F9FC] transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full md:w-auto bg-white text-[#0B3B3C] border border-[#0B3B3C]/20 px-4 py-2.5 rounded-xl font-bold flex justify-center items-center gap-2 text-sm md:text-[14px] hover:bg-[#F6F9FC] transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {exportAction === 'share' ? (
                   <span className="material-symbols-outlined animate-spin text-[18px]">progress_activity</span>

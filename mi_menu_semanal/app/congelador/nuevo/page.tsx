@@ -71,7 +71,7 @@ export default function AñadirCongeladorPage() {
   };
 
   return (
-    <div className="bg-[#F6F9FC] h-full w-full overflow-y-auto relative pb-32 md:pb-12 font-plus-jakarta text-[#2A4B4C]">
+    <div className="bg-[#F6F9FC] h-full w-full overflow-y-auto overflow-x-hidden relative pb-32 md:pb-12 font-plus-jakarta text-[#2A4B4C]">
       
       {/* HEADER SUPERIOR */}
       <header className="px-6 py-6 flex justify-between items-center sticky top-0 z-40 md:max-w-3xl md:mx-auto bg-transparent">
@@ -162,7 +162,7 @@ export default function AñadirCongeladorPage() {
         {/* CANTIDAD Y FECHA */}
         {/* CANTIDAD Y FECHAS */}
         <div className="mb-10 md:mb-12">
-          <div className="grid grid-cols-2 gap-4 md:gap-6 mb-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 md:gap-6 mb-4">
             <div>
               <label className="block text-[#0B3B3C] font-black text-[15px] md:text-[17px] mb-2 md:mb-4">Cantidad</label>
               <div className="bg-[#E2F1F6] rounded-[16px] md:rounded-[20px] p-2 flex items-center justify-between">

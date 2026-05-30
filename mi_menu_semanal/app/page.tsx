@@ -40,7 +40,7 @@ export default async function Home() {
   }));
 
   return (
-    <div className="h-full w-full overflow-y-auto flex flex-col bg-background relative">
+    <div className="h-full w-full overflow-y-auto overflow-x-hidden flex flex-col bg-background relative font-plus-jakarta text-[#2A4B4C]">
       <Header />
       <main className="flex-1 w-full max-w-7xl mx-auto px-6 pt-8 pb-32 md:pb-12">
         <HomeContent initialCategories={categories} initialRecipes={recipes} />
