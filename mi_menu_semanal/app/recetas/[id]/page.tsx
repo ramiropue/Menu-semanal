@@ -8,8 +8,16 @@ import { AddIngredientsButton } from "@/components/recipes/AddIngredientsButton"
 
 export const dynamic = 'force-dynamic';
 
-export default async function RecipeDetailPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function RecipeDetailPage({ 
+  params,
+  searchParams
+}: { 
+  params: Promise<{ id: string }>;
+  searchParams?: Promise<{ [key: string]: string | string[] | undefined }>;
+}) {
   const resolvedParams = await params;
+  const resolvedSearchParams = searchParams ? await searchParams : {};
+  const backUrl = resolvedSearchParams.from === 'planear' ? '/planear' : '/';
   
   // Fetch recipe data
   const { data: recipe, error } = await supabase
@@ -61,7 +69,7 @@ export default async function RecipeDetailPage({ params }: { params: Promise<{ i
           <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/40 to-transparent md:rounded-t-3xl"></div>
           
           <div className="absolute top-6 left-6 z-10">
-            <Link href="/" className="w-12 h-12 bg-black/30 backdrop-blur-md rounded-full flex items-center justify-center text-white hover:bg-black/50 transition-colors">
+            <Link href={backUrl} className="w-12 h-12 bg-black/30 backdrop-blur-md rounded-full flex items-center justify-center text-white hover:bg-black/50 transition-colors">
               <span className="material-symbols-outlined text-[24px]">arrow_back</span>
             </Link>
           </div>

@@ -16,7 +16,8 @@ function RecipeForm() {
   
   // States
   const [title, setTitle] = useState("");
-  const [category, setCategory] = useState("Entrantes");
+  const [dbCategories, setDbCategories] = useState<{ id: string, name: string }[]>([]);
+  const [category, setCategory] = useState("");
   const [time, setTime] = useState("");
   const [ingredients, setIngredients] = useState<Ingredient[]>([{ id: '1', quantity: "", name: "" }]);
   const [steps, setSteps] = useState<Step[]>([{ id: '1', text: "", image: null }]);
@@ -32,27 +33,17 @@ function RecipeForm() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const coverImageInputRef = useRef<HTMLInputElement>(null);
 
-  // Categories mapping (in a real app, this should be fetched from DB)
-  const categoryMap: Record<string, string> = {
-    "Entrantes": "2",
-    "Desayuno": "3",
-    "Carne": "4",
-    "Pescado": "5",
-    "Ensaladas": "6",
-    "Postres": "7",
-  };
-  
-  const reverseCategoryMap: Record<string, string> = {
-    "2": "Entrantes",
-    "3": "Desayuno",
-    "4": "Carne",
-    "5": "Pescado",
-    "6": "Ensaladas",
-    "7": "Postres",
-  };
-
   const [isEditing, setIsEditing] = useState(false);
   const [isLoadingRecipe, setIsLoadingRecipe] = useState(false);
+
+  useEffect(() => {
+    supabase.from('categories').select('id, name').order('sort_order').then(({ data }) => {
+      if (data && data.length > 0) {
+        setDbCategories(data);
+        setCategory(prev => prev || data[0].id);
+      }
+    });
+  }, []);
 
   // Cargar datos si estamos editando
   useEffect(() => {
@@ -69,12 +60,11 @@ function RecipeForm() {
             .single();
             
           if (error) throw error;
-          
-          if (recipe) {
-            setTitle(recipe.title || "");
-            setTime(recipe.time || "");
-            setCategory(reverseCategoryMap[recipe.category_id] || "Entrantes");
-            setTags(recipe.tags || ["Mediterránea"]);
+                    if (recipe) {
+              setTitle(recipe.title || "");
+              setTime(recipe.time || "");
+              if (recipe.category_id) setCategory(recipe.category_id);
+              setTags(recipe.tags || ["Mediterránea"]);
             
             // Parsear chef_tips si es JSON
             try {
@@ -286,7 +276,7 @@ function RecipeForm() {
 
       const recipeData: any = {
         title,
-        category_id: categoryMap[category] || "2",
+        category_id: category || null,
         time: time || null,
         tags,
         type: 'standard',
@@ -374,12 +364,9 @@ function RecipeForm() {
                     onChange={e => setCategory(e.target.value)}
                     className="w-full rounded-xl border-none p-3 shadow-sm bg-white appearance-none focus:ring-2 focus:ring-[#0B3B3C] outline-none text-base text-[#2A4B4C]"
                   >
-                    <option>Entrantes</option>
-                    <option>Desayuno</option>
-                    <option>Carne</option>
-                    <option>Pescado</option>
-                    <option>Ensaladas</option>
-                    <option>Postres</option>
+                    {dbCategories.map(c => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
                   </select>
                   <span className="material-symbols-outlined absolute right-3 top-3 text-gray-500 pointer-events-none">expand_more</span>
                 </div>

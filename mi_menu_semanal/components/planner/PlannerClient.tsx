@@ -22,7 +22,13 @@ interface Recipe {
 
 interface MealSlot {
   type: "DESAYUNO" | "COMIDA" | "CENA";
-  recipeId: string | null;
+  recipeId?: string | null;
+  recipeIds?: string[];
+}
+
+interface NormalizedMealSlot {
+  type: "DESAYUNO" | "COMIDA" | "CENA";
+  recipeIds: string[];
 }
 
 export function PlannerClient({ recipes }: { recipes: Recipe[] }) {
@@ -143,10 +149,10 @@ export function PlannerClient({ recipes }: { recipes: Recipe[] }) {
 
     let addedCount = 0;
     activeDates.forEach(date => {
-      const meals = getMealsForDate(date);
+      const meals = getNormalizedMealsForDate(date);
       meals.forEach(meal => {
-        if (meal.recipeId) {
-          const recipe = recipes.find(r => r.id === meal.recipeId);
+        meal.recipeIds.forEach(recipeId => {
+          const recipe = recipes.find(r => r.id === recipeId);
           let ingredients: Ingredient[] = [];
           if (recipe?.ingredients && recipe.ingredients.length > 0) {
             ingredients = recipe.ingredients.map(ing => ({
@@ -155,8 +161,8 @@ export function PlannerClient({ recipes }: { recipes: Recipe[] }) {
               unit: ing.unidad || ing.unit || "uds",
               category: "Otros" as any
             }));
-          } else if (RECIPE_INGREDIENTS[meal.recipeId]) {
-            ingredients = RECIPE_INGREDIENTS[meal.recipeId];
+          } else if (RECIPE_INGREDIENTS[recipeId]) {
+            ingredients = RECIPE_INGREDIENTS[recipeId];
           }
 
           if (ingredients.length > 0) {
@@ -172,7 +178,7 @@ export function PlannerClient({ recipes }: { recipes: Recipe[] }) {
               }
             });
           }
-        }
+        });
       });
     });
 
@@ -251,32 +257,60 @@ export function PlannerClient({ recipes }: { recipes: Recipe[] }) {
   }, []);
 
   // Get meals for a specific date (initialize if empty)
-  const getMealsForDate = (date: string): MealSlot[] => {
-    if (plannedMeals[date]) return plannedMeals[date];
-    return [
-      { type: "DESAYUNO", recipeId: null },
-      { type: "COMIDA", recipeId: null },
-      { type: "CENA", recipeId: null }
-    ];
+  const getNormalizedMealsForDate = (date: string): NormalizedMealSlot[] => {
+    const rawMeals = plannedMeals[date];
+    if (!rawMeals) {
+      return [
+        { type: "DESAYUNO", recipeIds: [] },
+        { type: "COMIDA", recipeIds: [] },
+        { type: "CENA", recipeIds: [] }
+      ];
+    }
+    
+    const normalized: NormalizedMealSlot[] = [];
+    for (const type of ["DESAYUNO", "COMIDA", "CENA"] as const) {
+      const typeMeals = rawMeals.filter(m => m.type === type);
+      const recipeIds: string[] = [];
+      for (const m of typeMeals) {
+        if (m.recipeIds) recipeIds.push(...m.recipeIds);
+        else if (m.recipeId) recipeIds.push(m.recipeId);
+      }
+      normalized.push({ type, recipeIds });
+    }
+    return normalized;
   };
 
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [selectedSlot, setSelectedSlot] = useState<{ date: string, type: string, index: number } | null>(null);
+  const [selectedSlot, setSelectedSlot] = useState<{ date: string, type: string, isReplacement?: boolean, replaceIndex?: number } | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
 
-  const openModal = (date: string, type: string, index: number) => {
-    setSelectedSlot({ date, type, index });
+  const openModal = (date: string, type: string, isReplacement = false, replaceIndex?: number) => {
+    setSelectedSlot({ date, type, isReplacement, replaceIndex });
     setSearchQuery("");
     setIsModalOpen(true);
   };
 
   const assignRecipe = (recipeId: string) => {
     if (!selectedSlot) return;
-    const { date, index } = selectedSlot;
-    const meals = getMealsForDate(date);
+    const { date, type, isReplacement, replaceIndex } = selectedSlot;
+    
+    const meals = getNormalizedMealsForDate(date);
     const newMeals = [...meals];
-    newMeals[index] = { ...newMeals[index], recipeId };
+    const mealIndex = newMeals.findIndex(m => m.type === type);
+    
+    if (mealIndex >= 0) {
+      if (isReplacement && replaceIndex !== undefined) {
+         const newRecipeIds = [...newMeals[mealIndex].recipeIds];
+         newRecipeIds[replaceIndex] = recipeId;
+         newMeals[mealIndex] = { ...newMeals[mealIndex], recipeIds: newRecipeIds };
+      } else {
+         newMeals[mealIndex] = { 
+           ...newMeals[mealIndex], 
+           recipeIds: [...newMeals[mealIndex].recipeIds, recipeId] 
+         };
+      }
+    }
     
     const updatedMeals = {
       ...plannedMeals,
@@ -286,6 +320,26 @@ export function PlannerClient({ recipes }: { recipes: Recipe[] }) {
     setPlannedMeals(updatedMeals);
     localStorage.setItem('planner_meals', JSON.stringify(updatedMeals));
     setIsModalOpen(false);
+  };
+
+  const removeRecipe = (date: string, type: string, indexToRemove: number) => {
+    const meals = getNormalizedMealsForDate(date);
+    const newMeals = [...meals];
+    const mealIndex = newMeals.findIndex(m => m.type === type);
+    
+    if (mealIndex >= 0) {
+      const newRecipeIds = [...newMeals[mealIndex].recipeIds];
+      newRecipeIds.splice(indexToRemove, 1);
+      newMeals[mealIndex] = { ...newMeals[mealIndex], recipeIds: newRecipeIds };
+      
+      const updatedMeals = {
+        ...plannedMeals,
+        [date]: newMeals
+      };
+      
+      setPlannedMeals(updatedMeals);
+      localStorage.setItem('planner_meals', JSON.stringify(updatedMeals));
+    }
   };
 
   // Filtrar recetas para el modal
@@ -439,8 +493,8 @@ export function PlannerClient({ recipes }: { recipes: Recipe[] }) {
               {currentMonthDays.map((day, i) => {
                 if (!day) return <div key={`empty-${i}`} className="h-[60px] md:h-[100px] rounded-xl bg-[#F6F9FC]/50"></div>;
                 
-                const meals = getMealsForDate(day.date);
-                const hasAnyMeal = meals.some(m => m.recipeId);
+                const meals = getNormalizedMealsForDate(day.date);
+                const hasAnyMeal = meals.some(m => m.recipeIds.length > 0);
                 const isToday = day.date === new Date(new Date().getTime() - new Date().getTimezoneOffset() * 60000).toISOString().split('T')[0];
                 
                 return (
@@ -450,22 +504,32 @@ export function PlannerClient({ recipes }: { recipes: Recipe[] }) {
                   >
                     <div className={`text-[10px] md:text-sm font-black mb-0.5 md:mb-1 opacity-80 group-hover:opacity-100 ${isToday ? 'text-[#B93B11]' : 'text-[#0B3B3C]'}`}>{day.dateNumber}</div>
                     <div className="flex-1 flex flex-col gap-0.5 overflow-hidden">
-                      {meals.map((meal, idx) => {
-                        const recipe = meal.recipeId ? recipes.find(r => r.id === meal.recipeId) : null;
-                        
-                        return (
-                          <div 
-                            key={idx}
-                            onClick={(e) => { e.stopPropagation(); openModal(day.date, meal.type, idx); }}
-                            className={`text-[7px] md:text-[9px] font-bold px-1 py-[2px] rounded md:rounded-md truncate leading-none ${
-                              recipe ? 'bg-[#0B3B3C] text-white' : 'bg-transparent text-gray-400 hover:bg-gray-200/50'
-                            }`}
-                            title={recipe ? recipe.title : `Añadir ${meal.type.toLowerCase()}`}
-                          >
-                            {recipe ? recipe.title : meal.type.substring(0,3)}
-                          </div>
-                        )
-                      })}
+                      {meals.map((meal, idx) => (
+                         <div key={meal.type} className="flex flex-col gap-0.5">
+                            {meal.recipeIds.map((recipeId, rIdx) => {
+                               const recipe = recipes.find(r => r.id === recipeId);
+                               return (
+                                  <div 
+                                    key={`${idx}-${rIdx}`}
+                                    onClick={(e) => { e.stopPropagation(); openModal(day.date, meal.type, true, rIdx); }}
+                                    className="bg-[#0B3B3C] text-white text-[7px] md:text-[9px] font-bold px-1 py-[2px] rounded md:rounded-md truncate leading-none"
+                                    title={recipe ? recipe.title : ''}
+                                  >
+                                    {recipe ? recipe.title : ''}
+                                  </div>
+                               )
+                            })}
+                            {meal.recipeIds.length === 0 && (
+                              <div 
+                                onClick={(e) => { e.stopPropagation(); openModal(day.date, meal.type); }}
+                                className="bg-transparent text-gray-400 hover:bg-gray-200/50 text-[7px] md:text-[9px] font-bold px-1 py-[2px] rounded md:rounded-md truncate leading-none"
+                                title={`Añadir ${meal.type.toLowerCase()}`}
+                              >
+                                {meal.type.substring(0,3)}
+                              </div>
+                            )}
+                         </div>
+                      ))}
                     </div>
                   </div>
                 )
@@ -475,7 +539,7 @@ export function PlannerClient({ recipes }: { recipes: Recipe[] }) {
         ) : (
           <div className="space-y-12">
            {currentWeekDays.map((day) => {
-             const meals = getMealsForDate(day.date);
+             const meals = getNormalizedMealsForDate(day.date);
              return (
                <div key={day.date} className="space-y-3 md:space-y-4">
                  {/* Título del día */}
@@ -485,52 +549,69 @@ export function PlannerClient({ recipes }: { recipes: Recipe[] }) {
                  
                  {/* Lista de comidas */}
                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 md:gap-4">
-                    {meals.map((meal, index) => {
-                      if (meal.recipeId) {
-                        // CARTA PLANIFICADA
-                        const recipe = recipes.find(r => r.id === meal.recipeId);
-                        if (!recipe) return null;
-                        
-                        return (
-                          <Link href={`/recetas/${recipe.id}`} key={index} className="bg-white rounded-[24px] p-3.5 shadow-[0_4px_20px_rgb(0,0,0,0.03)] flex items-center gap-4 hover:shadow-md transition-shadow cursor-pointer block">
-                            <div className="w-[52px] h-[52px] md:w-[60px] md:h-[60px] rounded-[16px] overflow-hidden shrink-0 shadow-sm">
-                              <img src={recipe.image!} alt={recipe.title} className="w-full h-full object-cover" />
+                    {meals.map((meal) => (
+                       <div key={meal.type} className="flex flex-col gap-2">
+                          {meal.recipeIds.length === 0 ? (
+                            // CARTA SIN PLANIFICAR
+                            <div onClick={() => openModal(day.date, meal.type)} className="bg-white/40 border-[1.5px] border-dashed border-gray-300 rounded-[24px] p-3.5 flex items-center gap-4 hover:bg-white/60 transition-colors cursor-pointer group">
+                              <div className="w-[52px] h-[52px] md:w-[60px] md:h-[60px] rounded-[16px] bg-[#E2F1F6] flex items-center justify-center shrink-0">
+                                <span className="material-symbols-outlined text-gray-400 group-hover:text-[#0B3B3C] transition-colors text-[20px] md:text-[24px]">restaurant</span>
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-[#B93B11] text-[9px] md:text-[10px] font-black uppercase tracking-widest mb-0.5">
+                                  {meal.type}
+                                </p>
+                                <p className="text-gray-400 font-medium text-sm md:text-[15px] leading-tight">
+                                  Sin planificar
+                                </p>
+                              </div>
+                              <button className="text-gray-300 group-hover:text-[#B93B11] p-2 transition-colors">
+                                <span className="material-symbols-outlined text-[22px]">add_circle</span>
+                              </button>
                             </div>
-                            <div className="flex-1 min-w-0">
-                              <p className="text-[#B93B11] text-[9px] md:text-[10px] font-black uppercase tracking-widest mb-0.5">
-                                {meal.type}
-                              </p>
-                              <p className="text-[#0B3B3C] font-bold text-sm md:text-[15px] leading-tight truncate">
-                                {recipe.title}
-                              </p>
-                            </div>
-                            <div className="text-gray-400 hover:text-[#0B3B3C] p-2 transition-colors">
-                              <span className="material-symbols-outlined text-[20px]">visibility</span>
-                            </div>
-                          </Link>
-                        );
-                      } else {
-                        // CARTA SIN PLANIFICAR
-                        return (
-                          <div key={index} onClick={() => openModal(day.date, meal.type, index)} className="bg-white/40 border-[1.5px] border-dashed border-gray-300 rounded-[24px] p-3.5 flex items-center gap-4 hover:bg-white/60 transition-colors cursor-pointer group">
-                            <div className="w-[52px] h-[52px] md:w-[60px] md:h-[60px] rounded-[16px] bg-[#E2F1F6] flex items-center justify-center shrink-0">
-                              <span className="material-symbols-outlined text-gray-400 group-hover:text-[#0B3B3C] transition-colors text-[20px] md:text-[24px]">restaurant</span>
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <p className="text-[#B93B11] text-[9px] md:text-[10px] font-black uppercase tracking-widest mb-0.5">
-                                {meal.type}
-                              </p>
-                              <p className="text-gray-400 font-medium text-sm md:text-[15px] leading-tight">
-                                Sin planificar
-                              </p>
-                            </div>
-                            <button className="text-gray-300 group-hover:text-[#B93B11] p-2 transition-colors">
-                              <span className="material-symbols-outlined text-[22px]">add_circle</span>
-                            </button>
-                          </div>
-                        );
-                      }
-                    })}
+                          ) : (
+                            <>
+                              {meal.recipeIds.map((recipeId, rIndex) => {
+                                 const recipe = recipes.find(r => r.id === recipeId);
+                                 if (!recipe) return null;
+                                 return (
+                                    // CARTA PLANIFICADA
+                                    <div key={rIndex} className="bg-white rounded-[24px] p-3.5 shadow-[0_4px_20px_rgb(0,0,0,0.03)] hover:shadow-md transition-shadow group relative">
+                                      <div className="flex items-center gap-3 md:gap-4">
+                                        <Link href={`/recetas/${recipe.id}?from=planear`} className="flex items-center gap-3 md:gap-4 flex-1 min-w-0">
+                                          <div className="w-[52px] h-[52px] md:w-[60px] md:h-[60px] rounded-[16px] overflow-hidden shrink-0 shadow-sm bg-gray-100">
+                                            {recipe.image && <img src={recipe.image} alt={recipe.title} className="w-full h-full object-cover" />}
+                                          </div>
+                                          <div className="flex-1 min-w-0 pr-2">
+                                            <p className="text-[#B93B11] text-[9px] md:text-[10px] font-black uppercase tracking-widest mb-0.5">
+                                              {meal.type}
+                                            </p>
+                                            <p className="text-[#0B3B3C] font-bold text-sm md:text-[15px] leading-tight truncate">
+                                              {recipe.title}
+                                            </p>
+                                          </div>
+                                        </Link>
+                                        <div className="flex flex-col gap-1 shrink-0 z-10 border-l pl-2 md:pl-3 border-gray-100">
+                                          <button onClick={() => openModal(day.date, meal.type, true, rIndex)} className="w-7 h-7 flex items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-[#0B3B3C] transition-colors" title="Cambiar receta">
+                                            <span className="material-symbols-outlined text-[16px]">swap_horiz</span>
+                                          </button>
+                                          <button onClick={() => removeRecipe(day.date, meal.type, rIndex)} className="w-7 h-7 flex items-center justify-center rounded-full text-gray-400 hover:bg-red-50 hover:text-red-500 transition-colors" title="Quitar receta">
+                                            <span className="material-symbols-outlined text-[16px]">close</span>
+                                          </button>
+                                        </div>
+                                      </div>
+                                    </div>
+                                 )
+                              })}
+                              {/* Botón para añadir otra receta a este mismo bloque */}
+                              <button onClick={() => openModal(day.date, meal.type)} className="w-full py-2 border-2 border-dashed border-[#E2F1F6] rounded-xl text-[#2A4B4C] text-xs font-bold hover:bg-[#E2F1F6]/50 hover:text-[#0B3B3C] transition-colors flex items-center justify-center gap-1 mt-1">
+                                 <span className="material-symbols-outlined text-[16px]">add</span>
+                                 Añadir otra
+                              </button>
+                            </>
+                          )}
+                       </div>
+                    ))}
                  </div>
                </div>
              )

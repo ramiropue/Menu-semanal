@@ -8,16 +8,17 @@ import { Category, Recipe } from "@/data/mockData";
 export const dynamic = 'force-dynamic';
 
 export default async function Home() {
-  // Categorías fijas sin necesidad de usar la base de datos
+  // Fetch categories from Supabase
+  const { data: dbCategories } = await supabase.from("categories").select("*").order("sort_order");
+  
   const categories: Category[] = [
-    { id: '0', name: 'Todas', icon: 'grid_view' },
-    { id: '1', name: 'Favoritas', icon: 'favorite' },
-    { id: '2', name: 'Entrantes', icon: 'restaurant' },
-    { id: '3', name: 'Desayuno', icon: 'breakfast_dining' },
-    { id: '4', name: 'Carne', icon: 'set_meal' },
-    { id: '5', name: 'Pescado', icon: 'phishing' },
-    { id: '6', name: 'Ensaladas', icon: 'nutrition' },
-    { id: '7', name: 'Postres', icon: 'icecream' },
+    { id: 'todas', name: 'Todas', icon: 'grid_view' },
+    { id: 'favoritas', name: 'Favoritas', icon: 'favorite' },
+    ...(dbCategories || []).map(c => ({
+      id: c.id,
+      name: c.name,
+      icon: c.icon
+    }))
   ];
 
   // Fetch recipes from Supabase

@@ -1,4 +1,5 @@
 import { Category } from "@/data/mockData";
+import Link from "next/link";
 
 export function CategoryScroll({ 
   categories, 
@@ -41,6 +42,19 @@ export function CategoryScroll({
             </span>
           </button>
         ))}
+        <Link
+          href="/categorias"
+          className="flex-shrink-0 flex flex-col items-center gap-1.5 md:gap-2 w-[52px] md:w-24 group cursor-pointer"
+        >
+          <div className="w-[46px] h-[46px] md:w-[72px] md:h-[72px] rounded-[14px] md:rounded-[20px] flex items-center justify-center transition-all active:scale-95 bg-[#EAF5F8] border border-dashed border-[#2A4B4C]/30 group-hover:border-[#0B3B3C] text-[#2A4B4C] group-hover:text-[#0B3B3C]">
+            <span className="material-symbols-outlined text-[24px] md:text-[32px]">
+              settings
+            </span>
+          </div>
+          <span className="font-headline font-bold text-[8.5px] md:text-[13px] uppercase tracking-tighter md:tracking-wider text-center leading-tight text-on-surface">
+            Ajustes
+          </span>
+        </Link>
       </div>
     </section>
   );
