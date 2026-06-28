@@ -4,9 +4,11 @@ import { useState, useRef, useEffect } from "react";
 import { toPng } from "html-to-image";
 import jsPDF from "jspdf";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { BottomNav } from "@/components/ui/BottomNav";
 import { Header } from "@/components/ui/Header";
 import { RECIPE_INGREDIENTS, Ingredient } from "@/data/ingredients";
+import { getPlannedMeals, savePlannedMeals, PLANNER_EVENT_KEY, MealSlot } from "@/lib/plannerStore";
 
 interface Recipe {
   id: string;
@@ -18,12 +20,6 @@ interface Recipe {
   calories?: string;
   category_id?: string;
   ingredients?: any[];
-}
-
-interface MealSlot {
-  type: "DESAYUNO" | "COMIDA" | "CENA";
-  recipeId?: string | null;
-  recipeIds?: string[];
 }
 
 interface NormalizedMealSlot {
@@ -245,30 +241,33 @@ export function PlannerClient({ recipes }: { recipes: Recipe[] }) {
   // Mock state for the planned meals (in a real app, this would come from DB based on date)
   const [plannedMeals, setPlannedMeals] = useState<Record<string, MealSlot[]>>({});
 
+  const pathname = usePathname();
+
   useEffect(() => {
-    const loadMeals = () => {
-      const saved = localStorage.getItem('planner_meals');
-      if (saved) {
-        try {
-          setPlannedMeals(JSON.parse(saved));
-        } catch (e) {
-          console.error("Error parsing planned meals from localStorage", e);
-        }
-      }
+    const loadMeals = async () => {
+      const meals = await getPlannedMeals();
+      setPlannedMeals(meals);
     };
 
     loadMeals();
 
-    window.addEventListener('planner_meals_updated', loadMeals);
-    window.addEventListener('storage', loadMeals);
-    window.addEventListener('focus', loadMeals);
+    const handleLocalUpdate = () => {
+      const saved = localStorage.getItem("planner_meals");
+      if (saved) {
+        try { setPlannedMeals(JSON.parse(saved)); } catch (e) {}
+      }
+    };
+
+    window.addEventListener(PLANNER_EVENT_KEY, handleLocalUpdate);
+    window.addEventListener("storage", handleLocalUpdate);
+    window.addEventListener("focus", loadMeals);
 
     return () => {
-      window.removeEventListener('planner_meals_updated', loadMeals);
-      window.removeEventListener('storage', loadMeals);
-      window.removeEventListener('focus', loadMeals);
+      window.removeEventListener(PLANNER_EVENT_KEY, handleLocalUpdate);
+      window.removeEventListener("storage", handleLocalUpdate);
+      window.removeEventListener("focus", loadMeals);
     };
-  }, []);
+  }, [pathname]);
 
   // Get meals for a specific date (initialize if empty)
   const getNormalizedMealsForDate = (date: string): NormalizedMealSlot[] => {
@@ -332,8 +331,7 @@ export function PlannerClient({ recipes }: { recipes: Recipe[] }) {
     };
     
     setPlannedMeals(updatedMeals);
-    localStorage.setItem('planner_meals', JSON.stringify(updatedMeals));
-    window.dispatchEvent(new Event('planner_meals_updated'));
+    savePlannedMeals(updatedMeals);
     setIsModalOpen(false);
   };
 
@@ -353,8 +351,7 @@ export function PlannerClient({ recipes }: { recipes: Recipe[] }) {
       };
       
       setPlannedMeals(updatedMeals);
-      localStorage.setItem('planner_meals', JSON.stringify(updatedMeals));
-      window.dispatchEvent(new Event('planner_meals_updated'));
+      savePlannedMeals(updatedMeals);
     }
   };
 

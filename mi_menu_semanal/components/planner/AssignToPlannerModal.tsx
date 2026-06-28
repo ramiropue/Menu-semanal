@@ -2,16 +2,11 @@
 
 import { useState, useEffect } from "react";
 import { Recipe } from "@/data/mockData";
+import { getPlannedMeals, savePlannedMeals, PLANNER_EVENT_KEY, MealSlot } from "@/lib/plannerStore";
 
 interface AssignToPlannerModalProps {
   recipe: Recipe | null;
   onClose: () => void;
-}
-
-interface MealSlot {
-  type: "DESAYUNO" | "COMIDA" | "CENA";
-  recipeId?: string | null;
-  recipeIds?: string[];
 }
 
 interface NormalizedMealSlot {
@@ -24,26 +19,29 @@ export function AssignToPlannerModal({ recipe, onClose }: AssignToPlannerModalPr
   const [plannedMeals, setPlannedMeals] = useState<Record<string, MealSlot[]>>({});
 
   useEffect(() => {
-    const loadMeals = () => {
+    const loadMeals = async () => {
+      const meals = await getPlannedMeals();
+      setPlannedMeals(meals);
+    };
+
+    if (recipe) {
+      loadMeals();
+    }
+
+    const handleLocalUpdate = () => {
       const saved = localStorage.getItem("planner_meals");
       if (saved) {
-        try {
-          setPlannedMeals(JSON.parse(saved));
-        } catch (e) {
-          console.error("Error parsing planned meals from localStorage", e);
-        }
+        try { setPlannedMeals(JSON.parse(saved)); } catch (e) {}
       }
     };
 
-    loadMeals();
-
-    window.addEventListener("planner_meals_updated", loadMeals);
-    window.addEventListener("storage", loadMeals);
+    window.addEventListener(PLANNER_EVENT_KEY, handleLocalUpdate);
+    window.addEventListener("storage", handleLocalUpdate);
     window.addEventListener("focus", loadMeals);
 
     return () => {
-      window.removeEventListener("planner_meals_updated", loadMeals);
-      window.removeEventListener("storage", loadMeals);
+      window.removeEventListener(PLANNER_EVENT_KEY, handleLocalUpdate);
+      window.removeEventListener("storage", handleLocalUpdate);
       window.removeEventListener("focus", loadMeals);
     };
   }, [recipe]);
@@ -128,8 +126,7 @@ export function AssignToPlannerModal({ recipe, onClose }: AssignToPlannerModalPr
     };
 
     setPlannedMeals(updatedMeals);
-    localStorage.setItem("planner_meals", JSON.stringify(updatedMeals));
-    window.dispatchEvent(new Event("planner_meals_updated"));
+    savePlannedMeals(updatedMeals);
   };
 
   const isAssigned = (date: string, type: "DESAYUNO" | "COMIDA" | "CENA") => {

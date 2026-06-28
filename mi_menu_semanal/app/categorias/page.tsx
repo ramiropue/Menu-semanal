@@ -122,6 +122,7 @@ export default function CategoriasPage() {
     const { data, error } = await supabase
       .from('categories')
       .select('*')
+      .neq('id', '_PLANNER_STATE_')
       .order('sort_order');
       
     if (error) {
