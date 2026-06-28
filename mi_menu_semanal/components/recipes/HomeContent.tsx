@@ -95,6 +95,7 @@ export function HomeContent({
       <AssignToPlannerModal 
         recipe={planningRecipe} 
         onClose={() => setPlanningRecipe(null)} 
+        allRecipes={recipes}
       />
     </>
   );

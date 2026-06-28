@@ -1,12 +1,14 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Recipe } from "@/data/mockData";
+import { Recipe, RECIPES } from "@/data/mockData";
 import { getPlannedMeals, savePlannedMeals, PLANNER_EVENT_KEY, MealSlot } from "@/lib/plannerStore";
+import { supabase } from "@/lib/supabase";
 
 interface AssignToPlannerModalProps {
   recipe: Recipe | null;
   onClose: () => void;
+  allRecipes?: Recipe[];
 }
 
 interface NormalizedMealSlot {
@@ -14,9 +16,10 @@ interface NormalizedMealSlot {
   recipeIds: string[];
 }
 
-export function AssignToPlannerModal({ recipe, onClose }: AssignToPlannerModalProps) {
+export function AssignToPlannerModal({ recipe, onClose, allRecipes = [] }: AssignToPlannerModalProps) {
   const [weekOffset, setWeekOffset] = useState(0);
   const [plannedMeals, setPlannedMeals] = useState<Record<string, MealSlot[]>>({});
+  const [dbRecipes, setDbRecipes] = useState<Recipe[]>([]);
 
   useEffect(() => {
     const loadMeals = async () => {
@@ -24,8 +27,18 @@ export function AssignToPlannerModal({ recipe, onClose }: AssignToPlannerModalPr
       setPlannedMeals(meals);
     };
 
+    const loadDbRecipes = async () => {
+      if (allRecipes.length === 0) {
+        const { data } = await supabase.from("recipes").select("*");
+        if (data) {
+          setDbRecipes(data as Recipe[]);
+        }
+      }
+    };
+
     if (recipe) {
       loadMeals();
+      loadDbRecipes();
     }
 
     const handleLocalUpdate = () => {
@@ -44,7 +57,14 @@ export function AssignToPlannerModal({ recipe, onClose }: AssignToPlannerModalPr
       window.removeEventListener("storage", handleLocalUpdate);
       window.removeEventListener("focus", loadMeals);
     };
-  }, [recipe]);
+  }, [recipe, allRecipes.length]);
+
+  const combinedRecipes = [...allRecipes, ...RECIPES, ...dbRecipes];
+
+  const getRecipeTitle = (id: string) => {
+    const found = combinedRecipes.find(r => r.id === id);
+    return found ? found.title : "Receta asignada";
+  };
 
   if (!recipe) return null;
 
@@ -201,27 +221,59 @@ export function AssignToPlannerModal({ recipe, onClose }: AssignToPlannerModalPr
                   <span className="text-xs text-gray-400 font-bold">{day.formattedDate}</span>
                 </div>
 
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-3 gap-2 items-start">
                   {(["DESAYUNO", "COMIDA", "CENA"] as const).map((type) => {
-                    const assigned = isAssigned(day.dateStr, type);
+                    const meals = getNormalizedMealsForDate(day.dateStr);
+                    const slot = meals.find((m) => m.type === type);
+                    const slotIds = slot ? slot.recipeIds : [];
+                    const assigned = slotIds.includes(recipe.id);
                     const label = type === "DESAYUNO" ? "Desayuno" : type === "COMIDA" ? "Comida" : "Cena";
                     const icon = type === "DESAYUNO" ? "free_breakfast" : type === "COMIDA" ? "restaurant" : "soup_kitchen";
 
                     return (
-                      <button
-                        key={type}
-                        onClick={() => toggleAssignRecipe(day.dateStr, type)}
-                        className={`py-2 px-2.5 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-                          assigned
-                            ? "bg-[#B93B11] text-white shadow-md scale-[1.02]"
-                            : "bg-[#F6F9FC] text-[#2A4B4C] hover:bg-gray-200/70 border border-gray-200/50"
-                        }`}
-                      >
-                        <span className="material-symbols-outlined text-[16px]">
-                          {assigned ? "check" : icon}
-                        </span>
-                        <span className="truncate">{label}</span>
-                      </button>
+                      <div key={type} className="flex flex-col gap-1.5 bg-gray-50/80 p-1.5 rounded-2xl border border-gray-100 min-h-[72px]">
+                        <button
+                          onClick={() => toggleAssignRecipe(day.dateStr, type)}
+                          className={`w-full py-2 px-2 rounded-xl font-bold text-xs flex items-center justify-center gap-1 transition-all cursor-pointer shadow-xs ${
+                            assigned
+                              ? "bg-[#B93B11] text-white shadow-md scale-[1.02]"
+                              : "bg-white text-[#2A4B4C] hover:bg-gray-100 border border-gray-200/60"
+                          }`}
+                        >
+                          <span className="material-symbols-outlined text-[16px] shrink-0">
+                            {assigned ? "check" : icon}
+                          </span>
+                          <span className="truncate">{label}</span>
+                        </button>
+
+                        {slotIds.length > 0 ? (
+                          <div className="flex flex-col gap-1 px-0.5 py-0.5">
+                            {slotIds.map((id) => {
+                              const isCurrentRecipe = id === recipe.id;
+                              const title = getRecipeTitle(id);
+                              return (
+                                <div 
+                                  key={id} 
+                                  className={`text-[10px] leading-tight px-2 py-1 rounded-lg font-bold flex items-center gap-1 ${
+                                    isCurrentRecipe 
+                                      ? "bg-[#FAD9D0] text-[#B93B11] border border-[#B93B11]/20" 
+                                      : "bg-white text-gray-700 border border-gray-200/80 shadow-2xs"
+                                  }`}
+                                  title={title}
+                                >
+                                  <span className="truncate">🍽️ {title}</span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <div className="flex-1 flex items-center justify-center py-1.5">
+                            <span className="text-[10px] font-semibold text-emerald-600/80 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-100/60">
+                              Libre
+                            </span>
+                          </div>
+                        )}
+                      </div>
                     );
                   })}
                 </div>
