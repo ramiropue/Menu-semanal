@@ -6,6 +6,7 @@ import { SearchBar } from "@/components/ui/SearchBar";
 import { CategoryScroll } from "@/components/recipes/CategoryScroll";
 import { RecipeGrid } from "@/components/recipes/RecipeGrid";
 import { AssignToPlannerModal } from "@/components/planner/AssignToPlannerModal";
+import { getFavorites, saveFavorites } from "@/lib/syncStore";
 
 export function HomeContent({ 
   initialCategories, 
@@ -19,19 +20,16 @@ export function HomeContent({
   const [recipes, setRecipes] = useState<Recipe[]>(initialRecipes);
   const [planningRecipe, setPlanningRecipe] = useState<Recipe | null>(null);
 
-  // Cargar favoritos desde localStorage al inicio
   useEffect(() => {
-    try {
-      const savedFavorites = localStorage.getItem('mimenu_favorites');
-      if (savedFavorites) {
-        const favoriteIds = JSON.parse(savedFavorites);
+    const loadFavs = async () => {
+      const favoriteIds = await getFavorites([]);
+      if (favoriteIds && favoriteIds.length > 0) {
         setRecipes(prev => prev.map(r => 
           favoriteIds.includes(r.id) ? { ...r, is_favorite: true } : r
         ));
       }
-    } catch (e) {
-      console.error("Error loading favorites", e);
-    }
+    };
+    loadFavs();
   }, []);
 
   const activeCategory = initialCategories.find(c => c.id === activeCategoryId);
@@ -76,13 +74,8 @@ export function HomeContent({
   const handleToggleFavorite = (recipeId: string, newValue: boolean) => {
     setRecipes(prev => {
       const newRecipes = prev.map(r => r.id === recipeId ? { ...r, is_favorite: newValue } : r);
-      // Guardar en localStorage
-      try {
-        const favoriteIds = newRecipes.filter(r => r.is_favorite).map(r => r.id);
-        localStorage.setItem('mimenu_favorites', JSON.stringify(favoriteIds));
-      } catch (e) {
-        console.error("Error saving favorites", e);
-      }
+      const favoriteIds = newRecipes.filter(r => r.is_favorite).map(r => r.id);
+      saveFavorites(favoriteIds);
       return newRecipes;
     });
   };

@@ -122,7 +122,7 @@ export default function CategoriasPage() {
     const { data, error } = await supabase
       .from('categories')
       .select('*')
-      .neq('id', '_PLANNER_STATE_')
+      .not('id', 'in', '("_PLANNER_STATE_","_FREEZER_STATE_","_SHOPPING_LIST_STATE_","_FAVORITES_STATE_")')
       .order('sort_order');
       
     if (error) {

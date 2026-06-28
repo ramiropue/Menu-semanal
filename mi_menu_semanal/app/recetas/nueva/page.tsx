@@ -37,7 +37,7 @@ function RecipeForm() {
   const [isLoadingRecipe, setIsLoadingRecipe] = useState(false);
 
   useEffect(() => {
-    supabase.from('categories').select('id, name').neq('id', '_PLANNER_STATE_').order('sort_order').then(({ data }) => {
+    supabase.from('categories').select('id, name').not('id', 'in', '("_PLANNER_STATE_","_FREEZER_STATE_","_SHOPPING_LIST_STATE_","_FAVORITES_STATE_")').order('sort_order').then(({ data }) => {
       if (data && data.length > 0) {
         setDbCategories(data);
         setCategory(prev => prev || data[0].id);

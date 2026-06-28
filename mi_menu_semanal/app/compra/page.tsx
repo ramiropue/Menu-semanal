@@ -1,9 +1,11 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
+import { usePathname } from "next/navigation";
 import { Header } from "@/components/ui/Header";
 import { BottomNav } from "@/components/ui/BottomNav";
 import { RECIPE_INGREDIENTS, IngredientCategory } from "@/data/ingredients";
+import { getShoppingList, saveShoppingList } from "@/lib/syncStore";
 
 interface AggregatedIngredient {
   name: string;
@@ -15,23 +17,37 @@ interface AggregatedIngredient {
 
 export default function ShoppingListPage() {
   const [ingredientsList, setIngredientsList] = useState<AggregatedIngredient[]>([]);
+  const pathname = usePathname();
 
   useEffect(() => {
-    const saved = localStorage.getItem('shopping_list_items');
-    if (saved) {
-      try {
-        setIngredientsList(JSON.parse(saved));
-      } catch (e) {
-        console.error("Error parsing shopping list", e);
-      }
-    }
-  }, []);
+    const loadList = async () => {
+      const synced = await getShoppingList([]);
+      setIngredientsList(synced);
+    };
+
+    loadList();
+
+    const handleLocal = () => {
+      const saved = localStorage.getItem('shopping_list_items');
+      if (saved) { try { setIngredientsList(JSON.parse(saved)); } catch (e) {} }
+    };
+
+    window.addEventListener('shopping_list_items_updated', handleLocal);
+    window.addEventListener('storage', handleLocal);
+    window.addEventListener('focus', loadList);
+
+    return () => {
+      window.removeEventListener('shopping_list_items_updated', handleLocal);
+      window.removeEventListener('storage', handleLocal);
+      window.removeEventListener('focus', loadList);
+    };
+  }, [pathname]);
 
   const toggleCheck = (index: number) => {
     const newList = [...ingredientsList];
     newList[index].checked = !newList[index].checked;
     setIngredientsList(newList);
-    localStorage.setItem('shopping_list_items', JSON.stringify(newList));
+    saveShoppingList(newList);
   };
 
   const deleteIngredient = (index: number, e: React.MouseEvent) => {
@@ -39,13 +55,13 @@ export default function ShoppingListPage() {
     const newList = [...ingredientsList];
     newList.splice(index, 1);
     setIngredientsList(newList);
-    localStorage.setItem('shopping_list_items', JSON.stringify(newList));
+    saveShoppingList(newList);
   };
 
   const clearList = () => {
     if (window.confirm("¿Estás seguro de que quieres vaciar toda la lista de la compra?")) {
       setIngredientsList([]);
-      localStorage.removeItem('shopping_list_items');
+      saveShoppingList([]);
     }
   };
 

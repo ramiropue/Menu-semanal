@@ -8,8 +8,7 @@ import { Category, Recipe } from "@/data/mockData";
 export const dynamic = 'force-dynamic';
 
 export default async function Home() {
-  // Fetch categories from Supabase
-  const { data: dbCategories } = await supabase.from("categories").select("*").neq("id", "_PLANNER_STATE_").order("sort_order");
+  const { data: dbCategories } = await supabase.from("categories").select("*").not("id", "in", '("_PLANNER_STATE_","_FREEZER_STATE_","_SHOPPING_LIST_STATE_","_FAVORITES_STATE_")').order("sort_order");
   
   const categories: Category[] = [
     { id: 'todas', name: 'Todas', icon: 'grid_view' },

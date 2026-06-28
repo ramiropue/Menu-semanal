@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { BottomNav } from "@/components/ui/BottomNav";
+import { getFreezerItems, saveFreezerItems } from "@/lib/syncStore";
 
 export default function AñadirCongeladorPage() {
   const router = useRouter();
@@ -28,14 +29,13 @@ export default function AñadirCongeladorPage() {
   const increment = () => setCantidad(c => c + 1);
   const decrement = () => setCantidad(c => Math.max(1, c - 1));
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!titulo.trim()) {
       alert("Por favor, introduce el nombre de lo que vas a guardar.");
       return;
     }
 
-    const saved = localStorage.getItem('congelador_items');
-    const items = saved ? JSON.parse(saved) : []; // Se fusionará luego en page.tsx si no existía
+    const items = await getFreezerItems([]);
 
     let icon = "restaurant";
     let iconColor = "text-[#B93B11]";
@@ -66,7 +66,7 @@ export default function AñadirCongeladorPage() {
       warningColor: "text-gray-500"
     };
 
-    localStorage.setItem('congelador_items', JSON.stringify([newItem, ...items]));
+    await saveFreezerItems([newItem, ...items]);
     router.push('/congelador');
   };
 

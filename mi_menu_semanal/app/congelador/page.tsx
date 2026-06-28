@@ -2,8 +2,10 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { Header } from "@/components/ui/Header";
 import { BottomNav } from "@/components/ui/BottomNav";
+import { getFreezerItems, saveFreezerItems } from "@/lib/syncStore";
 
   const DEFAULT_ITEMS = [
     {
@@ -67,15 +69,31 @@ export default function CongeladorPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [items, setItems] = useState<any[]>([]);
 
+  const pathname = usePathname();
+
   useEffect(() => {
-    const saved = localStorage.getItem('congelador_items');
-    if (saved) {
-      setItems(JSON.parse(saved));
-    } else {
-      setItems(DEFAULT_ITEMS);
-      localStorage.setItem('congelador_items', JSON.stringify(DEFAULT_ITEMS));
-    }
-  }, []);
+    const loadItems = async () => {
+      const synced = await getFreezerItems(DEFAULT_ITEMS);
+      setItems(synced);
+    };
+
+    loadItems();
+
+    const handleLocal = () => {
+      const saved = localStorage.getItem('congelador_items');
+      if (saved) { try { setItems(JSON.parse(saved)); } catch (e) {} }
+    };
+
+    window.addEventListener('congelador_items_updated', handleLocal);
+    window.addEventListener('storage', handleLocal);
+    window.addEventListener('focus', loadItems);
+
+    return () => {
+      window.removeEventListener('congelador_items_updated', handleLocal);
+      window.removeEventListener('storage', handleLocal);
+      window.removeEventListener('focus', loadItems);
+    };
+  }, [pathname]);
 
   const updateCount = (id: number, delta: number) => {
     setItems(prevItems => {
@@ -85,7 +103,7 @@ export default function CongeladorPage() {
         }
         return item;
       });
-      localStorage.setItem('congelador_items', JSON.stringify(newItems));
+      saveFreezerItems(newItems);
       return newItems;
     });
   };
@@ -93,7 +111,7 @@ export default function CongeladorPage() {
   const updateDate = (id: number, newDate: string) => {
     setItems(prevItems => {
       const newItems = prevItems.map(item => item.id === id ? { ...item, date: newDate } : item);
-      localStorage.setItem('congelador_items', JSON.stringify(newItems));
+      saveFreezerItems(newItems);
       return newItems;
     });
   };
@@ -101,7 +119,7 @@ export default function CongeladorPage() {
   const deleteItem = (id: number) => {
     setItems(prevItems => {
       const newItems = prevItems.filter(item => item.id !== id);
-      localStorage.setItem('congelador_items', JSON.stringify(newItems));
+      saveFreezerItems(newItems);
       return newItems;
     });
   };

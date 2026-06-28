@@ -1,6 +1,7 @@
 "use client";
 
 import { Ingredient } from "@/data/ingredients";
+import { getShoppingList, saveShoppingList } from "@/lib/syncStore";
 
 interface Props {
   ingredients: any[];
@@ -13,20 +14,19 @@ export function AddIngredientsButton({ ingredients }: Props) {
       n = n.slice(0, -3) + "z";
     } else if (n.endsWith("es") && n.length > 3) {
       n = n.slice(0, -2);
-    } else if (n.endsWith("s") && n.length > 2) {
+    } else if (n.endsWith("s") && !n.endsWith("is") && !n.endsWith("us") && n.length > 3) {
       n = n.slice(0, -1);
     }
     return n;
   };
 
-  const handleAdd = () => {
+  const handleAdd = async () => {
     if (!ingredients || ingredients.length === 0) {
       alert("Esta receta no tiene ingredientes.");
       return;
     }
 
-    const saved = localStorage.getItem('shopping_list_items');
-    const currentList: (Ingredient & { checked: boolean })[] = saved ? JSON.parse(saved) : [];
+    const currentList: (Ingredient & { checked: boolean })[] = await getShoppingList([]);
 
     const map = new Map<string, Ingredient & { checked: boolean }>();
     currentList.forEach(ing => {
@@ -55,7 +55,7 @@ export function AddIngredientsButton({ ingredients }: Props) {
     });
 
     const newList = Array.from(map.values());
-    localStorage.setItem('shopping_list_items', JSON.stringify(newList));
+    await saveShoppingList(newList);
     alert(`¡Se han añadido los ingredientes a tu Lista de la Compra!`);
   };
 

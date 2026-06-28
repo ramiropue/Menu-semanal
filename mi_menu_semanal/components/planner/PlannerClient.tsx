@@ -9,6 +9,7 @@ import { BottomNav } from "@/components/ui/BottomNav";
 import { Header } from "@/components/ui/Header";
 import { RECIPE_INGREDIENTS, Ingredient } from "@/data/ingredients";
 import { getPlannedMeals, savePlannedMeals, PLANNER_EVENT_KEY, MealSlot } from "@/lib/plannerStore";
+import { getShoppingList, saveShoppingList } from "@/lib/syncStore";
 
 interface Recipe {
   id: string;
@@ -128,13 +129,12 @@ export function PlannerClient({ recipes }: { recipes: Recipe[] }) {
     return n;
   };
 
-  const addToShoppingList = () => {
+  const addToShoppingList = async () => {
     const activeDates = viewMode === 'week' 
       ? currentWeekDays.map(d => d.date) 
       : currentMonthDays.filter(d => d !== null).map(d => d!.date);
 
-    const saved = localStorage.getItem('shopping_list_items');
-    const currentList: (Ingredient & { checked: boolean })[] = saved ? JSON.parse(saved) : [];
+    const currentList: (Ingredient & { checked: boolean })[] = await getShoppingList([]);
 
     const map = new Map<string, Ingredient & { checked: boolean }>();
     currentList.forEach(ing => {
@@ -184,7 +184,7 @@ export function PlannerClient({ recipes }: { recipes: Recipe[] }) {
     }
 
     const newList = Array.from(map.values());
-    localStorage.setItem('shopping_list_items', JSON.stringify(newList));
+    await saveShoppingList(newList);
     alert(`¡Se han añadido los ingredientes a tu Lista de la Compra!`);
   };
   
