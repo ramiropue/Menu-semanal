@@ -246,14 +246,28 @@ export function PlannerClient({ recipes }: { recipes: Recipe[] }) {
   const [plannedMeals, setPlannedMeals] = useState<Record<string, MealSlot[]>>({});
 
   useEffect(() => {
-    const saved = localStorage.getItem('planner_meals');
-    if (saved) {
-      try {
-        setPlannedMeals(JSON.parse(saved));
-      } catch (e) {
-        console.error("Error parsing planned meals from localStorage", e);
+    const loadMeals = () => {
+      const saved = localStorage.getItem('planner_meals');
+      if (saved) {
+        try {
+          setPlannedMeals(JSON.parse(saved));
+        } catch (e) {
+          console.error("Error parsing planned meals from localStorage", e);
+        }
       }
-    }
+    };
+
+    loadMeals();
+
+    window.addEventListener('planner_meals_updated', loadMeals);
+    window.addEventListener('storage', loadMeals);
+    window.addEventListener('focus', loadMeals);
+
+    return () => {
+      window.removeEventListener('planner_meals_updated', loadMeals);
+      window.removeEventListener('storage', loadMeals);
+      window.removeEventListener('focus', loadMeals);
+    };
   }, []);
 
   // Get meals for a specific date (initialize if empty)
@@ -319,6 +333,7 @@ export function PlannerClient({ recipes }: { recipes: Recipe[] }) {
     
     setPlannedMeals(updatedMeals);
     localStorage.setItem('planner_meals', JSON.stringify(updatedMeals));
+    window.dispatchEvent(new Event('planner_meals_updated'));
     setIsModalOpen(false);
   };
 
@@ -339,6 +354,7 @@ export function PlannerClient({ recipes }: { recipes: Recipe[] }) {
       
       setPlannedMeals(updatedMeals);
       localStorage.setItem('planner_meals', JSON.stringify(updatedMeals));
+      window.dispatchEvent(new Event('planner_meals_updated'));
     }
   };
 

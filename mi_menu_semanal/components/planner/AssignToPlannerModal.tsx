@@ -24,15 +24,29 @@ export function AssignToPlannerModal({ recipe, onClose }: AssignToPlannerModalPr
   const [plannedMeals, setPlannedMeals] = useState<Record<string, MealSlot[]>>({});
 
   useEffect(() => {
-    const saved = localStorage.getItem("planner_meals");
-    if (saved) {
-      try {
-        setPlannedMeals(JSON.parse(saved));
-      } catch (e) {
-        console.error("Error parsing planned meals from localStorage", e);
+    const loadMeals = () => {
+      const saved = localStorage.getItem("planner_meals");
+      if (saved) {
+        try {
+          setPlannedMeals(JSON.parse(saved));
+        } catch (e) {
+          console.error("Error parsing planned meals from localStorage", e);
+        }
       }
-    }
-  }, []);
+    };
+
+    loadMeals();
+
+    window.addEventListener("planner_meals_updated", loadMeals);
+    window.addEventListener("storage", loadMeals);
+    window.addEventListener("focus", loadMeals);
+
+    return () => {
+      window.removeEventListener("planner_meals_updated", loadMeals);
+      window.removeEventListener("storage", loadMeals);
+      window.removeEventListener("focus", loadMeals);
+    };
+  }, [recipe]);
 
   if (!recipe) return null;
 
@@ -115,6 +129,7 @@ export function AssignToPlannerModal({ recipe, onClose }: AssignToPlannerModalPr
 
     setPlannedMeals(updatedMeals);
     localStorage.setItem("planner_meals", JSON.stringify(updatedMeals));
+    window.dispatchEvent(new Event("planner_meals_updated"));
   };
 
   const isAssigned = (date: string, type: "DESAYUNO" | "COMIDA" | "CENA") => {
