@@ -5,6 +5,7 @@ import { Category, Recipe } from "@/data/mockData";
 import { SearchBar } from "@/components/ui/SearchBar";
 import { CategoryScroll } from "@/components/recipes/CategoryScroll";
 import { RecipeGrid } from "@/components/recipes/RecipeGrid";
+import { AssignToPlannerModal } from "@/components/planner/AssignToPlannerModal";
 
 export function HomeContent({ 
   initialCategories, 
@@ -16,6 +17,7 @@ export function HomeContent({
   const [searchQuery, setSearchQuery] = useState("");
   const [activeCategoryId, setActiveCategoryId] = useState<string>(""); // Ninguna por defecto para mostrar todas
   const [recipes, setRecipes] = useState<Recipe[]>(initialRecipes);
+  const [planningRecipe, setPlanningRecipe] = useState<Recipe | null>(null);
 
   // Cargar favoritos desde localStorage al inicio
   useEffect(() => {
@@ -95,6 +97,11 @@ export function HomeContent({
       <RecipeGrid 
         recipes={filteredRecipes} 
         onToggleFavorite={handleToggleFavorite}
+        onAssignToPlanner={(recipe) => setPlanningRecipe(recipe)}
+      />
+      <AssignToPlannerModal 
+        recipe={planningRecipe} 
+        onClose={() => setPlanningRecipe(null)} 
       />
     </>
   );

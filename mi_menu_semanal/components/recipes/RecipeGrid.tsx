@@ -3,10 +3,12 @@ import { RecipeCard } from "./RecipeCard";
 
 export function RecipeGrid({ 
   recipes,
-  onToggleFavorite
+  onToggleFavorite,
+  onAssignToPlanner
 }: { 
   recipes: Recipe[];
   onToggleFavorite?: (id: string, newValue: boolean) => void;
+  onAssignToPlanner?: (recipe: Recipe) => void;
 }) {
   const featuredRecipes = recipes.filter(
     (recipe) => recipe.type === "featured" || recipe.isWeeklyFavorite
@@ -26,7 +28,7 @@ export function RecipeGrid({
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {featuredRecipes.map((recipe) => (
-              <RecipeCard key={recipe.id} recipe={recipe} onToggleFavorite={onToggleFavorite} />
+              <RecipeCard key={recipe.id} recipe={recipe} onToggleFavorite={onToggleFavorite} onAssignToPlanner={onAssignToPlanner} />
             ))}
           </div>
         </section>
@@ -41,7 +43,7 @@ export function RecipeGrid({
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {otherRecipes.map((recipe) => (
-              <RecipeCard key={recipe.id} recipe={recipe} onToggleFavorite={onToggleFavorite} />
+              <RecipeCard key={recipe.id} recipe={recipe} onToggleFavorite={onToggleFavorite} onAssignToPlanner={onAssignToPlanner} />
             ))}
           </div>
         </section>

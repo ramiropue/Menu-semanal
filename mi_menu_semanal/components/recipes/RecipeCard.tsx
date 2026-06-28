@@ -6,13 +6,16 @@ import { supabase } from "@/lib/supabase";
 
 export function RecipeCard({ 
   recipe,
-  onToggleFavorite
+  onToggleFavorite,
+  onAssignToPlanner
 }: { 
   recipe: Recipe;
   onToggleFavorite?: (id: string, newValue: boolean) => void;
+  onAssignToPlanner?: (recipe: Recipe) => void;
 }) {
   const handleFavoriteClick = async (e: React.MouseEvent) => {
     e.preventDefault();
+    e.stopPropagation();
     const newValue = !recipe.is_favorite;
     
     // Actualizar estado local y localStorage a través del padre
@@ -28,6 +31,19 @@ export function RecipeCard({
           className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
           src={recipe.image}
         />
+        {onAssignToPlanner && (
+          <div 
+            className="absolute top-4 left-4 w-10 h-10 rounded-full bg-black/20 backdrop-blur-md flex items-center justify-center text-white hover:bg-[#0B3B3C] transition-colors cursor-pointer z-10 shadow-sm" 
+            title="Añadir a planificación semanal"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onAssignToPlanner(recipe);
+            }}
+          >
+            <span className="material-symbols-outlined text-[20px]">calendar_add_on</span>
+          </div>
+        )}
         <div 
           className="absolute top-4 right-4 w-10 h-10 rounded-full bg-black/20 backdrop-blur-md flex items-center justify-center text-white hover:bg-secondary transition-colors cursor-pointer z-10" 
           onClick={handleFavoriteClick}
