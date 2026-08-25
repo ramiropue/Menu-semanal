@@ -19,6 +19,15 @@ export type Recipe = {
   calories?: number;
   description?: string;
   category_id?: string;
+  category_ids?: string[];
+  source?: "supabase" | "markdown";
+  markdownContent?: {
+    ingredients: { cantidad: string; ingrediente: string }[];
+    steps: { step: number; description: string }[];
+    links: { text: string; url: string }[];
+    sourceUrl: string | null;
+    sections: Record<string, string>;
+  };
 };
 
 export const CATEGORIES: Category[] = [

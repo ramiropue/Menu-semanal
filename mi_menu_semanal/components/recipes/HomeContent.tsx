@@ -16,7 +16,7 @@ export function HomeContent({
   initialRecipes: Recipe[] 
 }) {
   const [searchQuery, setSearchQuery] = useState("");
-  const [activeCategoryId, setActiveCategoryId] = useState<string>(""); // Ninguna por defecto para mostrar todas
+  const [activeCategoryIds, setActiveCategoryIds] = useState<string[]>([]); // Multi-select
   const [recipes, setRecipes] = useState<Recipe[]>(initialRecipes);
   const [planningRecipe, setPlanningRecipe] = useState<Recipe | null>(null);
 
@@ -32,7 +32,7 @@ export function HomeContent({
     loadFavs();
   }, []);
 
-  const activeCategory = initialCategories.find(c => c.id === activeCategoryId);
+  const activeCategories = initialCategories.filter(c => activeCategoryIds.includes(c.id));
 
   // Filtrar recetas
   const filteredRecipes = recipes.filter(recipe => {
@@ -42,32 +42,45 @@ export function HomeContent({
     const matchesSearch = recipe.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
                           tags.some(tag => tag.toLowerCase().includes(searchQuery.toLowerCase()));
     
-    // Filtrar por categoría
+    // Filtrar por categorías (multi-select: la receta debe coincidir con TODAS las categorías activas)
     let matchesCategory = true;
-    if (activeCategory) {
-      if (activeCategory.name === "Favoritas") {
-        matchesCategory = recipe.is_favorite === true;
-      } else {
-        matchesCategory = recipe.category_id === activeCategory.id;
-      }
+    if (activeCategories.length > 0) {
+      const recipeCatIds = recipe.category_ids || (recipe.category_id ? [recipe.category_id] : []);
+
+      matchesCategory = activeCategories.every(cat => {
+        if (cat.name === "Favoritas") {
+          return recipe.is_favorite === true;
+        } else if (cat.name === "Notas") {
+          return recipe.id.startsWith("md-");
+        } else {
+          return recipeCatIds.includes(cat.id);
+        }
+      });
     }
 
     return matchesSearch && matchesCategory;
   });
 
-  // Categorías con estado activo actualizado
+  // Categorías con estado activo actualizado (multi-select)
   const categoriesWithActiveState = initialCategories.map(cat => ({
     ...cat,
-    isActive: cat.id === '0' ? activeCategoryId === "" : cat.id === activeCategoryId
+    isActive: activeCategoryIds.includes(cat.id)
   }));
 
   const handleCategoryClick = (id: string) => {
-    if (id === '0') {
-      setActiveCategoryId("");
-      return;
-    }
-    // Si se hace clic en la misma categoría, la deseleccionamos (vuelve a 'Todas')
-    setActiveCategoryId(prev => prev === id ? "" : id);
+    setActiveCategoryIds(prev => {
+      if (id === 'todas') {
+        // "Todas" deselecciona todo
+        return [];
+      }
+      if (prev.includes(id)) {
+        // Deseleccionar
+        return prev.filter(cid => cid !== id);
+      } else {
+        // Añadir (quitar "todas" si estaba implícito)
+        return [...prev.filter(cid => cid !== 'todas'), id];
+      }
+    });
   };
 
   // Manejar el toggle de favorito

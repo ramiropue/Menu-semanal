@@ -19,7 +19,7 @@ export default async function RecipeDetailPage({
   const resolvedSearchParams = searchParams ? await searchParams : {};
   const backUrl = resolvedSearchParams.from === 'planear' ? '/planear' : '/';
   
-  // Fetch recipe data
+  // Fetch recipe data (works for both regular and markdown-imported recipes)
   const { data: recipe, error } = await supabase
     .from("recipes")
     .select(`*, categories(name, icon)`)

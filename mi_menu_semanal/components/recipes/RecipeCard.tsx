@@ -2,7 +2,6 @@
 
 import { Recipe } from "@/data/mockData";
 import Link from "next/link";
-import { supabase } from "@/lib/supabase";
 
 export function RecipeCard({ 
   recipe,
@@ -76,7 +75,7 @@ export function RecipeCard({
             {recipe.title}
           </h4>
           <div className="flex flex-wrap gap-2">
-            {recipe.tags.slice(0, 3).map((tag, index) => (
+            {(recipe.tags || []).slice(0, 3).map((tag, index) => (
               <span
                 key={index}
                 className={`text-[11px] font-bold uppercase tracking-wider ${

@@ -4,15 +4,20 @@ import { FAB } from "@/components/ui/FAB";
 import { HomeContent } from "@/components/recipes/HomeContent";
 import { supabase } from "@/lib/supabase";
 import { Category, Recipe } from "@/data/mockData";
+import { importMarkdownToSupabase } from "@/lib/markdownRecipes";
 
 export const dynamic = 'force-dynamic';
 
 export default async function Home() {
+  // Auto-import markdown recipes to Supabase (idempotent — skips existing)
+  await importMarkdownToSupabase();
+
   const { data: dbCategories } = await supabase.from("categories").select("*").not("id", "in", '("_PLANNER_STATE_","_FREEZER_STATE_","_SHOPPING_LIST_STATE_","_FAVORITES_STATE_")').order("sort_order");
   
   const categories: Category[] = [
     { id: 'todas', name: 'Todas', icon: 'grid_view' },
     { id: 'favoritas', name: 'Favoritas', icon: 'favorite' },
+    { id: 'notas', name: 'Notas', icon: 'description' },
     ...(dbCategories || []).map(c => ({
       id: c.id,
       name: c.name,
@@ -20,7 +25,7 @@ export default async function Home() {
     }))
   ];
 
-  // Fetch recipes from Supabase
+  // Fetch ALL recipes from Supabase (markdown recipes are now included)
   const { data: recipesData } = await supabase.from("recipes").select("*");
 
   const recipes: Recipe[] = (recipesData || []).map((rec) => ({
@@ -37,6 +42,7 @@ export default async function Home() {
     calories: rec.calories,
     description: rec.description,
     category_id: rec.category_id,
+    category_ids: rec.category_ids || (rec.category_id ? [rec.category_id] : []),
   }));
 
   return (

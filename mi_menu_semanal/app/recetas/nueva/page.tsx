@@ -17,7 +17,7 @@ function RecipeForm() {
   // States
   const [title, setTitle] = useState("");
   const [dbCategories, setDbCategories] = useState<{ id: string, name: string }[]>([]);
-  const [category, setCategory] = useState("");
+  const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>([]);
   const [time, setTime] = useState("");
   const [ingredients, setIngredients] = useState<Ingredient[]>([{ id: '1', quantity: "", name: "" }]);
   const [steps, setSteps] = useState<Step[]>([{ id: '1', text: "", image: null }]);
@@ -40,7 +40,6 @@ function RecipeForm() {
     supabase.from('categories').select('id, name').not('id', 'in', '("_PLANNER_STATE_","_FREEZER_STATE_","_SHOPPING_LIST_STATE_","_FAVORITES_STATE_")').order('sort_order').then(({ data }) => {
       if (data && data.length > 0) {
         setDbCategories(data);
-        setCategory(prev => prev || data[0].id);
       }
     });
   }, []);
@@ -63,7 +62,11 @@ function RecipeForm() {
                     if (recipe) {
               setTitle(recipe.title || "");
               setTime(recipe.time || "");
-              if (recipe.category_id) setCategory(recipe.category_id);
+              if (recipe.category_ids && recipe.category_ids.length > 0) {
+                setSelectedCategoryIds(recipe.category_ids);
+              } else if (recipe.category_id) {
+                setSelectedCategoryIds([recipe.category_id]);
+              }
               setTags(recipe.tags || ["Mediterránea"]);
             
             // Parsear chef_tips si es JSON
@@ -276,7 +279,8 @@ function RecipeForm() {
 
       const recipeData: any = {
         title,
-        category_id: category || null,
+        category_id: selectedCategoryIds[0] || null,
+        category_ids: selectedCategoryIds,
         time: time || null,
         tags,
         type: 'standard',
@@ -357,19 +361,35 @@ function RecipeForm() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-bold text-[#2A4B4C] mb-2">Categoría</label>
-                <div className="relative">
-                  <select 
-                    value={category}
-                    onChange={e => setCategory(e.target.value)}
-                    className="w-full rounded-xl border-none p-3 shadow-sm bg-white appearance-none focus:ring-2 focus:ring-[#0B3B3C] outline-none text-base text-[#2A4B4C]"
-                  >
-                    {dbCategories.map(c => (
-                      <option key={c.id} value={c.id}>{c.name}</option>
-                    ))}
-                  </select>
-                  <span className="material-symbols-outlined absolute right-3 top-3 text-gray-500 pointer-events-none">expand_more</span>
+                <label className="block text-sm font-bold text-[#2A4B4C] mb-2">Categorías</label>
+                <div className="flex flex-wrap gap-2">
+                  {dbCategories.map(c => {
+                    const isSelected = selectedCategoryIds.includes(c.id);
+                    return (
+                      <button
+                        key={c.id}
+                        type="button"
+                        onClick={() => {
+                          setSelectedCategoryIds(prev =>
+                            prev.includes(c.id)
+                              ? prev.filter(id => id !== c.id)
+                              : [...prev, c.id]
+                          );
+                        }}
+                        className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${
+                          isSelected
+                            ? "bg-[#0B3B3C] text-white shadow-md"
+                            : "bg-white text-[#2A4B4C] shadow-sm hover:bg-[#D1E6ED]"
+                        }`}
+                      >
+                        {c.name}
+                      </button>
+                    );
+                  })}
                 </div>
+                {selectedCategoryIds.length === 0 && (
+                  <p className="text-xs text-gray-400 mt-1">Selecciona una o más categorías</p>
+                )}
               </div>
               <div>
                 <label className="block text-sm font-bold text-[#2A4B4C] mb-2">Tiempo de Preparación</label>
