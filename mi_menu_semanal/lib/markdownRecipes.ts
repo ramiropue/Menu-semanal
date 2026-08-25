@@ -230,28 +230,41 @@ export async function importMarkdownToSupabase(): Promise<void> {
   const mdRecipes = getMarkdownRecipes();
   if (mdRecipes.length === 0) return;
 
-  const rows = mdRecipes.map((md) => ({
-    id: md.id,
-    title: md.title,
-    image: MD_PLACEHOLDER_IMAGE,
-    tags: md.tags,
-    type: "standard",
-    ingredients: md.ingredients,
-    steps: md.steps.map((s) => ({ step: s.step, description: s.description })),
-    chef_tips: JSON.stringify({
-      text: "",
-      url: md.sourceUrl || "",
-    }),
-    is_weekly_favorite: false,
-    is_draft: false,
-  }));
+  for (const md of mdRecipes) {
+    const row = {
+      id: md.id,
+      title: md.title,
+      image: MD_PLACEHOLDER_IMAGE,
+      tags: md.tags,
+      type: "standard",
+      ingredients: md.ingredients,
+      steps: md.steps.map((s) => ({ step: s.step, description: s.description })),
+      chef_tips: JSON.stringify({
+        text: "",
+        url: md.sourceUrl || "",
+      }),
+      is_weekly_favorite: false,
+      is_draft: false,
+    };
 
-  try {
-    await supabase
+    // Check if already exists
+    const { data: existing } = await supabase
       .from("recipes")
-      .upsert(rows, { onConflict: "id", ignoreDuplicates: true });
-  } catch (e) {
-    console.error("Error importing markdown recipes to Supabase:", e);
+      .select("id")
+      .eq("id", md.id)
+      .single();
+
+    if (existing) {
+      // Already imported — skip (preserves user edits)
+      continue;
+    }
+
+    const { error } = await supabase.from("recipes").insert(row);
+    if (error) {
+      console.error(`Error importing markdown recipe "${md.title}":`, error.message);
+    } else {
+      console.log(`✅ Imported markdown recipe: ${md.title}`);
+    }
   }
 }
 
