@@ -2,7 +2,6 @@
 
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { supabase } from "@/lib/supabase";
 
 interface RecipeActionsProps {
   recipeId: string;
@@ -17,13 +16,13 @@ export function RecipeActions({ recipeId }: RecipeActionsProps) {
     }
 
     try {
-      const { error } = await supabase
-        .from("recipes")
-        .delete()
-        .eq("id", recipeId);
+      const res = await fetch(`/api/recipes/${recipeId}`, {
+        method: "DELETE",
+      });
 
-      if (error) {
-        throw error;
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Error al eliminar");
       }
 
       alert("Receta eliminada con éxito.");

@@ -1,6 +1,7 @@
 import { Header } from "@/components/ui/Header";
 import { BottomNav } from "@/components/ui/BottomNav";
-import { supabase } from "@/lib/supabase";
+import db from "@/lib/db";
+import { RowDataPacket } from "mysql2";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { RecipeActions } from "@/components/recipes/RecipeActions";
@@ -19,20 +20,24 @@ export default async function RecipeDetailPage({
   const resolvedSearchParams = searchParams ? await searchParams : {};
   const backUrl = resolvedSearchParams.from === 'planear' ? '/planear' : '/';
   
-  // Fetch recipe data (works for both regular and markdown-imported recipes)
-  const { data: recipe, error } = await supabase
-    .from("recipes")
-    .select(`*, categories(name, icon)`)
-    .eq("id", resolvedParams.id)
-    .single();
+  // Fetch recipe data with category JOIN
+  const [rows] = await db.query<RowDataPacket[]>(
+    `SELECT r.*, c.name AS cat_name, c.icon AS cat_icon
+     FROM recipes r
+     LEFT JOIN categories c ON r.category_id = c.id
+     WHERE r.id = ?`,
+    [resolvedParams.id]
+  );
 
-  if (error || !recipe) {
+  if (rows.length === 0) {
     return notFound();
   }
 
-  // Parse JSONB columns
-  const ingredients = recipe.ingredients || [];
-  const steps = recipe.steps || [];
+  const recipe = rows[0];
+  
+  // Parse JSON fields if they come as strings
+  const ingredients = typeof recipe.ingredients === 'string' ? JSON.parse(recipe.ingredients) : (recipe.ingredients || []);
+  const steps = typeof recipe.steps === 'string' ? JSON.parse(recipe.steps) : (recipe.steps || []);
 
   let chefTipsText = recipe.chef_tips || "";
   let sourceUrl = "";

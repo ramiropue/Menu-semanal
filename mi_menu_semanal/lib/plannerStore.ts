@@ -1,5 +1,3 @@
-import { supabase } from "@/lib/supabase";
-
 export interface MealSlot {
   type: "DESAYUNO" | "COMIDA" | "CENA";
   recipeId?: string | null;
@@ -10,7 +8,7 @@ export const PLANNER_STORAGE_KEY = "planner_meals";
 export const PLANNER_EVENT_KEY = "planner_meals_updated";
 
 /**
- * Fetch planned meals from Supabase (shared across devices) and update local cache.
+ * Fetch planned meals from MariaDB API (shared across devices) and update local cache.
  */
 export async function getPlannedMeals(): Promise<Record<string, MealSlot[]>> {
   let localMeals: Record<string, MealSlot[]> = {};
@@ -27,19 +25,16 @@ export async function getPlannedMeals(): Promise<Record<string, MealSlot[]>> {
   }
 
   try {
-    const { data, error } = await supabase
-      .from("categories")
-      .select("name")
-      .eq("id", "_PLANNER_STATE_")
-      .single();
-
-    if (!error && data?.name) {
-      const dbMeals = JSON.parse(data.name);
-      if (typeof window !== "undefined") {
-        localStorage.setItem(PLANNER_STORAGE_KEY, JSON.stringify(dbMeals));
-        window.dispatchEvent(new Event(PLANNER_EVENT_KEY));
+    const res = await fetch("/api/state/_PLANNER_STATE_");
+    if (res.ok) {
+      const dbMeals = await res.json();
+      if (dbMeals !== null) {
+        if (typeof window !== "undefined") {
+          localStorage.setItem(PLANNER_STORAGE_KEY, JSON.stringify(dbMeals));
+          window.dispatchEvent(new Event(PLANNER_EVENT_KEY));
+        }
+        return dbMeals;
       }
-      return dbMeals;
     }
   } catch (e) {
     console.error("Error fetching remote planner state:", e);
@@ -49,7 +44,7 @@ export async function getPlannedMeals(): Promise<Record<string, MealSlot[]>> {
 }
 
 /**
- * Save planned meals to local cache immediately and sync to Supabase in the background.
+ * Save planned meals to local cache immediately and sync to MariaDB API in the background.
  */
 export async function savePlannedMeals(meals: Record<string, MealSlot[]>) {
   const jsonStr = JSON.stringify(meals);
@@ -60,11 +55,10 @@ export async function savePlannedMeals(meals: Record<string, MealSlot[]>) {
   }
 
   try {
-    await supabase.from("categories").upsert({
-      id: "_PLANNER_STATE_",
-      name: jsonStr,
-      icon: "settings",
-      is_active: false,
+    await fetch("/api/state/_PLANNER_STATE_", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: jsonStr,
     });
   } catch (e) {
     console.error("Error saving remote planner state:", e);

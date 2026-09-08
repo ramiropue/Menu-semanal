@@ -1,22 +1,23 @@
 import { PlannerClient } from "@/components/planner/PlannerClient";
-import { supabase } from "@/lib/supabase";
+import db from "@/lib/db";
+import { RowDataPacket } from "mysql2";
 
 export const dynamic = 'force-dynamic';
 
 export default async function PlannerPage() {
   // Obtener todas las recetas para pasarlas al componente cliente
-  const { data: recipesData } = await supabase.from("recipes").select("*");
+  const [recipesData] = await db.query<RowDataPacket[]>("SELECT * FROM recipes");
   
   const recipes = (recipesData || []).map((rec: any) => ({
     id: rec.id,
     title: rec.title,
     image: rec.image,
     type: rec.type,
-    tags: rec.tags || [],
+    tags: typeof rec.tags === 'string' ? JSON.parse(rec.tags) : (rec.tags || []),
     time: rec.time,
     calories: rec.calories,
     category_id: rec.category_id,
-    ingredients: rec.ingredients
+    ingredients: typeof rec.ingredients === 'string' ? JSON.parse(rec.ingredients) : (rec.ingredients || [])
   }));
 
   return <PlannerClient recipes={recipes} />;

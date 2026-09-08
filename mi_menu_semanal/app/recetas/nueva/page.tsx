@@ -4,7 +4,7 @@ import { useState, useRef, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Header } from "@/components/ui/Header";
 import { BottomNav } from "@/components/ui/BottomNav";
-import { supabase } from "@/lib/supabase";
+
 
 type Ingredient = { id: string; quantity: string; name: string };
 type Step = { id: string; text: string; image?: File | null };
@@ -37,7 +37,7 @@ function RecipeForm() {
   const [isLoadingRecipe, setIsLoadingRecipe] = useState(false);
 
   useEffect(() => {
-    supabase.from('categories').select('id, name').not('id', 'in', '("_PLANNER_STATE_","_FREEZER_STATE_","_SHOPPING_LIST_STATE_","_FAVORITES_STATE_")').order('sort_order').then(({ data }) => {
+    fetch('/api/categories').then(res => res.json()).then(data => {
       if (data && data.length > 0) {
         setDbCategories(data);
       }
@@ -52,13 +52,9 @@ function RecipeForm() {
       
       const loadRecipe = async () => {
         try {
-          const { data: recipe, error } = await supabase
-            .from('recipes')
-            .select('*')
-            .eq('id', editId)
-            .single();
-            
-          if (error) throw error;
+          const res = await fetch(`/api/recipes/${editId}`);
+          if (!res.ok) throw new Error('Error al cargar receta');
+          const recipe = await res.json();
                     if (recipe) {
               setTitle(recipe.title || "");
               setTime(recipe.time || "");
@@ -144,18 +140,21 @@ function RecipeForm() {
 
   // Upload helper
   const uploadImage = async (file: File) => {
-    const fileExt = file.name.split('.').pop();
-    const fileName = `${Math.random().toString(36).substring(2, 15)}_${Date.now()}.${fileExt}`;
-    const filePath = `${fileName}`;
+    const formData = new FormData();
+    formData.append('file', file);
 
-    const { data, error } = await supabase.storage
-      .from('recipe-images')
-      .upload(filePath, file);
+    const res = await fetch('/api/upload', {
+      method: 'POST',
+      body: formData,
+    });
 
-    if (error) throw error;
-    
-    const { data: publicUrlData } = supabase.storage.from('recipe-images').getPublicUrl(filePath);
-    return publicUrlData.publicUrl;
+    if (!res.ok) {
+      const data = await res.json();
+      throw new Error(data.error || 'Error al subir imagen');
+    }
+
+    const { publicUrl } = await res.json();
+    return publicUrl;
   };
 
   // Scraping Logic
@@ -300,15 +299,29 @@ function RecipeForm() {
       let saveError;
 
       if (isEditing && editId) {
-        const { error } = await supabase.from('recipes').update(recipeData).eq('id', editId);
-        saveError = error;
+        const res = await fetch(`/api/recipes/${editId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(recipeData),
+        });
+        if (!res.ok) {
+          const data = await res.json();
+          saveError = { message: data.error || 'Error al actualizar' };
+        }
       } else {
         const newId = Date.now().toString();
         const insertData = { ...recipeData, id: newId, is_weekly_favorite: false };
         // Asegurar que image existe para insert
         if (!insertData.image) insertData.image = "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&q=80&w=800";
-        const { error } = await supabase.from('recipes').insert(insertData);
-        saveError = error;
+        const res = await fetch('/api/recipes', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(insertData),
+        });
+        if (!res.ok) {
+          const data = await res.json();
+          saveError = { message: data.error || 'Error al crear' };
+        }
       }
 
       if (saveError) throw saveError;

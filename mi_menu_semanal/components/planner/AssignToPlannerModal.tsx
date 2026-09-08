@@ -1,9 +1,9 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Recipe, RECIPES } from "@/data/mockData";
+import { Recipe } from "@/data/mockData";
 import { getPlannedMeals, savePlannedMeals, PLANNER_EVENT_KEY, MealSlot } from "@/lib/plannerStore";
-import { supabase } from "@/lib/supabase";
+
 
 interface AssignToPlannerModalProps {
   recipe: Recipe | null;
@@ -29,9 +29,16 @@ export function AssignToPlannerModal({ recipe, onClose, allRecipes = [] }: Assig
 
     const loadDbRecipes = async () => {
       if (allRecipes.length === 0) {
-        const { data } = await supabase.from("recipes").select("*");
-        if (data) {
-          setDbRecipes(data as Recipe[]);
+        try {
+          const res = await fetch('/api/recipes');
+          if (res.ok) {
+            const data = await res.json();
+            if (data) {
+              setDbRecipes(data as Recipe[]);
+            }
+          }
+        } catch (e) {
+          console.error('Error loading recipes:', e);
         }
       }
     };
@@ -59,7 +66,7 @@ export function AssignToPlannerModal({ recipe, onClose, allRecipes = [] }: Assig
     };
   }, [recipe, allRecipes.length]);
 
-  const combinedRecipes = [...allRecipes, ...RECIPES, ...dbRecipes];
+  const combinedRecipes = [...allRecipes, ...dbRecipes];
 
   const getRecipeTitle = (id: string) => {
     const found = combinedRecipes.find(r => r.id === id);

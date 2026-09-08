@@ -20,7 +20,7 @@ export type Recipe = {
   description?: string;
   category_id?: string;
   category_ids?: string[];
-  source?: "supabase" | "markdown";
+  source?: "database" | "mariadb" | "supabase" | "markdown";
   markdownContent?: {
     ingredients: { cantidad: string; ingrediente: string }[];
     steps: { step: number; description: string }[];
