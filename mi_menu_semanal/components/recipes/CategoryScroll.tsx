@@ -1,3 +1,5 @@
+"use client";
+
 import { Category } from "@/data/mockData";
 import Link from "next/link";
 
@@ -19,8 +21,12 @@ export function CategoryScroll({
         {categories.map((category) => (
           <button
             key={category.id}
-            onClick={() => onCategoryClick?.(category.id)}
-            className="flex-shrink-0 flex flex-col items-center gap-1.5 md:gap-2 w-[52px] md:w-24 group cursor-pointer"
+            type="button"
+            onClick={(e) => {
+              e.preventDefault();
+              onCategoryClick?.(category.id);
+            }}
+            className="flex-shrink-0 flex flex-col items-center gap-1.5 md:gap-2 w-[52px] md:w-24 group cursor-pointer touch-manipulation select-none"
           >
             <div
               className={`w-[46px] h-[46px] md:w-[72px] md:h-[72px] rounded-[14px] md:rounded-[20px] flex items-center justify-center transition-all active:scale-95 ${
@@ -29,12 +35,12 @@ export function CategoryScroll({
                   : "bg-white dark:bg-slate-800 shadow-sm border border-transparent group-hover:border-secondary-fixed text-secondary"
               }`}
             >
-              <span className="material-symbols-outlined text-[24px] md:text-[32px]">
+              <span className="material-symbols-outlined text-[24px] md:text-[32px] pointer-events-none">
                 {category.icon}
               </span>
             </div>
             <span
-              className={`font-headline font-bold text-[8.5px] md:text-[13px] uppercase tracking-tighter md:tracking-wider text-center leading-tight ${
+              className={`font-headline font-bold text-[8.5px] md:text-[13px] uppercase tracking-tighter md:tracking-wider text-center leading-tight pointer-events-none ${
                 category.isActive ? "text-secondary" : "text-on-surface"
               }`}
             >
@@ -44,14 +50,14 @@ export function CategoryScroll({
         ))}
         <Link
           href="/categorias"
-          className="flex-shrink-0 flex flex-col items-center gap-1.5 md:gap-2 w-[52px] md:w-24 group cursor-pointer"
+          className="flex-shrink-0 flex flex-col items-center gap-1.5 md:gap-2 w-[52px] md:w-24 group cursor-pointer touch-manipulation select-none"
         >
           <div className="w-[46px] h-[46px] md:w-[72px] md:h-[72px] rounded-[14px] md:rounded-[20px] flex items-center justify-center transition-all active:scale-95 bg-[#EAF5F8] border border-dashed border-[#2A4B4C]/30 group-hover:border-[#0B3B3C] text-[#2A4B4C] group-hover:text-[#0B3B3C]">
-            <span className="material-symbols-outlined text-[24px] md:text-[32px]">
+            <span className="material-symbols-outlined text-[24px] md:text-[32px] pointer-events-none">
               settings
             </span>
           </div>
-          <span className="font-headline font-bold text-[8.5px] md:text-[13px] uppercase tracking-tighter md:tracking-wider text-center leading-tight text-on-surface">
+          <span className="font-headline font-bold text-[8.5px] md:text-[13px] uppercase tracking-tighter md:tracking-wider text-center leading-tight text-on-surface pointer-events-none">
             Ajustes
           </span>
         </Link>

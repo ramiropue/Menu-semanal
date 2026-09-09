@@ -42,15 +42,15 @@ export function HomeContent({
     const matchesSearch = recipe.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
                           tags.some(tag => tag.toLowerCase().includes(searchQuery.toLowerCase()));
     
-    // Filtrar por categorías (multi-select: la receta debe coincidir con TODAS las categorías activas)
+    // Filtrar por categorías
     let matchesCategory = true;
     if (activeCategories.length > 0) {
       const recipeCatIds = recipe.category_ids || (recipe.category_id ? [recipe.category_id] : []);
 
-      matchesCategory = activeCategories.every(cat => {
-        if (cat.name === "Favoritas") {
+      matchesCategory = activeCategories.some(cat => {
+        if (cat.name === "Favoritas" || cat.id === "favoritas") {
           return recipe.is_favorite === true;
-        } else if (cat.name === "Notas") {
+        } else if (cat.name === "Notas" || cat.id === "notas") {
           return recipe.id.startsWith("md-");
         } else {
           return recipeCatIds.includes(cat.id);
@@ -61,25 +61,20 @@ export function HomeContent({
     return matchesSearch && matchesCategory;
   });
 
-  // Categorías con estado activo actualizado (multi-select)
+  // Categorías con estado activo actualizado ('Todas' activo cuando no hay filtro)
   const categoriesWithActiveState = initialCategories.map(cat => ({
     ...cat,
-    isActive: activeCategoryIds.includes(cat.id)
+    isActive: cat.id === 'todas'
+      ? activeCategoryIds.length === 0
+      : activeCategoryIds.includes(cat.id)
   }));
 
   const handleCategoryClick = (id: string) => {
     setActiveCategoryIds(prev => {
-      if (id === 'todas') {
-        // "Todas" deselecciona todo
+      if (id === 'todas' || prev.includes(id)) {
         return [];
       }
-      if (prev.includes(id)) {
-        // Deseleccionar
-        return prev.filter(cid => cid !== id);
-      } else {
-        // Añadir (quitar "todas" si estaba implícito)
-        return [...prev.filter(cid => cid !== 'todas'), id];
-      }
+      return [id];
     });
   };
 
