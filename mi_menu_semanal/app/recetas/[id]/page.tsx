@@ -57,7 +57,7 @@ export default async function RecipeDetailPage({
       
       <main className="w-full flex-1 flex flex-col pb-16">
         {/* HERO SECTION */}
-        <div className="relative w-full h-[397px] md:h-[540px] lg:h-[580px] overflow-hidden">
+        <div className="relative w-full h-[420px] md:h-[540px] lg:h-[600px] overflow-hidden">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img 
             src={recipe.image} 
@@ -65,7 +65,7 @@ export default async function RecipeDetailPage({
             className="w-full h-full object-cover"
           />
           {/* Gradiente oscuro inferior para legibilidad */}
-          <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/30 to-transparent"></div>
+          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/35 to-transparent"></div>
           
           {/* Botón flotante para volver atrás */}
           <div className="absolute top-6 left-6 z-20">
@@ -79,13 +79,15 @@ export default async function RecipeDetailPage({
           </div>
 
           {/* Título y badge en el banner */}
-          <div className="absolute bottom-14 sm:bottom-16 md:bottom-24 lg:bottom-28 left-6 right-6 max-w-7xl mx-auto">
-            <span className="bg-secondary-container text-white px-4 py-1 rounded-full text-xs font-bold uppercase tracking-widest mb-3 inline-block shadow-sm">
-              Premium
-            </span>
-            <h1 className="text-white font-headline text-3xl sm:text-5xl md:text-6xl lg:text-7xl font-extrabold tracking-tight leading-tight drop-shadow-md">
-              {recipe.title}
-            </h1>
+          <div className="absolute bottom-16 sm:bottom-20 md:bottom-32 lg:bottom-40 xl:bottom-44 left-0 right-0 px-6 z-10 pointer-events-none">
+            <div className="max-w-7xl mx-auto">
+              <span className="bg-secondary-container text-white px-4 py-1 rounded-full text-xs font-bold uppercase tracking-widest mb-3 inline-block shadow-sm pointer-events-auto">
+                Premium
+              </span>
+              <h1 className="text-white font-headline text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-extrabold tracking-tight leading-tight drop-shadow-md max-w-4xl">
+                {recipe.title}
+              </h1>
+            </div>
           </div>
         </div>
 
