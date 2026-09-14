@@ -1,5 +1,7 @@
+import { supabase } from "@/lib/supabase";
+
 /**
- * Generic helper to fetch synced state from MariaDB API with localStorage fallback.
+ * Generic helper to fetch synced state from Supabase with localStorage fallback.
  */
 export async function getSyncedState<T>(storageKey: string, dbId: string, defaultVal: T): Promise<T> {
   let localVal: T = defaultVal;
@@ -16,16 +18,19 @@ export async function getSyncedState<T>(storageKey: string, dbId: string, defaul
   }
 
   try {
-    const res = await fetch(`/api/state/${dbId}`);
-    if (res.ok) {
-      const dbVal = await res.json();
-      if (dbVal !== null) {
-        if (typeof window !== "undefined") {
-          localStorage.setItem(storageKey, JSON.stringify(dbVal));
-          window.dispatchEvent(new Event(`${storageKey}_updated`));
-        }
-        return dbVal;
+    const { data, error } = await supabase
+      .from("categories")
+      .select("name")
+      .eq("id", dbId)
+      .single();
+
+    if (!error && data?.name) {
+      const dbVal = JSON.parse(data.name);
+      if (typeof window !== "undefined") {
+        localStorage.setItem(storageKey, JSON.stringify(dbVal));
+        window.dispatchEvent(new Event(`${storageKey}_updated`));
       }
+      return dbVal;
     }
   } catch (e) {
     console.error(`Error fetching remote state for ${dbId}:`, e);
@@ -35,7 +40,7 @@ export async function getSyncedState<T>(storageKey: string, dbId: string, defaul
 }
 
 /**
- * Generic helper to save synced state to localStorage and MariaDB API.
+ * Generic helper to save synced state to localStorage and Supabase.
  */
 export async function saveSyncedState<T>(storageKey: string, dbId: string, val: T) {
   const jsonStr = JSON.stringify(val);
@@ -46,10 +51,11 @@ export async function saveSyncedState<T>(storageKey: string, dbId: string, val: 
   }
 
   try {
-    await fetch(`/api/state/${dbId}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: jsonStr,
+    await supabase.from("categories").upsert({
+      id: dbId,
+      name: jsonStr,
+      icon: "settings",
+      is_active: false,
     });
   } catch (e) {
     console.error(`Error saving remote state for ${dbId}:`, e);

@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { Header } from "@/components/ui/Header";
 import { BottomNav } from "@/components/ui/BottomNav";
-
+import { supabase } from "@/lib/supabase";
 import Link from "next/link";
 import {
   DndContext,
@@ -119,19 +119,18 @@ export default function CategoriasPage() {
 
   const loadCategories = async () => {
     setIsLoading(true);
-    try {
-      const res = await fetch('/api/categories');
-      if (res.ok) {
-        const data = await res.json();
-        setCategories(data || []);
-      } else {
-        console.error("Error loading categories:", await res.text());
-      }
-    } catch (err) {
-      console.error("Error loading categories:", err);
-    } finally {
-      setIsLoading(false);
+    const { data, error } = await supabase
+      .from('categories')
+      .select('*')
+      .not('id', 'in', '("_PLANNER_STATE_","_FREEZER_STATE_","_SHOPPING_LIST_STATE_","_FAVORITES_STATE_")')
+      .order('sort_order');
+      
+    if (error) {
+      console.error("Error loading categories:", error);
+    } else {
+      setCategories(data || []);
     }
+    setIsLoading(false);
   };
 
   useEffect(() => {
@@ -152,29 +151,20 @@ export default function CategoriasPage() {
       setCategories(_categories);
       
       // Save all to DB asynchronously
-      try {
-        await fetch('/api/categories', {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(_categories.map(c => ({ id: c.id, sort_order: c.sort_order })))
-        });
-      } catch (err) {
-        console.error("Error updating sort order:", err);
-      }
+      await Promise.all(_categories.map(c => 
+        supabase.from('categories').update({ sort_order: c.sort_order }).eq('id', c.id)
+      ));
     }
   };
 
   const handleDelete = async (id: string, name: string) => {
     if (confirm(`¿Estás seguro de que quieres eliminar la categoría "${name}"? Las recetas que pertenezcan a esta categoría se quedarán sin categoría asignada.`)) {
-      try {
-        const res = await fetch(`/api/categories/${id}`, { method: 'DELETE' });
-        if (!res.ok) {
-          throw new Error(await res.text());
-        }
-        setCategories(categories.filter(c => c.id !== id));
-      } catch (error) {
+      const { error } = await supabase.from('categories').delete().eq('id', id);
+      if (error) {
         alert("Error al eliminar la categoría");
         console.error(error);
+      } else {
+        setCategories(categories.filter(c => c.id !== id));
       }
     }
   };
@@ -195,24 +185,16 @@ export default function CategoriasPage() {
       sort_order: maxSortOrder + 1
     };
 
-    try {
-      const res = await fetch('/api/categories', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newCategory),
-      });
-
-      if (!res.ok) {
-        throw new Error(await res.text());
-      }
-
+    const { error } = await supabase.from('categories').insert(newCategory);
+    
+    if (error) {
+      alert("Error al crear la categoría");
+      console.error(error);
+    } else {
       setCategories([...categories, newCategory]);
       setNewName("");
       setNewIcon("restaurant");
       setIsCreating(false);
-    } catch (error) {
-      alert("Error al crear la categoría");
-      console.error(error);
     }
   };
 
@@ -222,16 +204,8 @@ export default function CategoriasPage() {
     setEditingIconId(null);
     
     // Save to DB
-    try {
-      const res = await fetch(`/api/categories/${id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ icon }),
-      });
-      if (!res.ok) {
-        throw new Error(await res.text());
-      }
-    } catch (error) {
+    const { error } = await supabase.from('categories').update({ icon }).eq('id', id);
+    if (error) {
       alert("Error al actualizar el icono");
       console.error(error);
     }

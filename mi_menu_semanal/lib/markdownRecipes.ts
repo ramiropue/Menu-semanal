@@ -1,7 +1,6 @@
 import fs from "fs";
 import path from "path";
-import db from "@/lib/db";
-import { RowDataPacket } from "mysql2";
+import { supabase } from "@/lib/supabase";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -223,11 +222,11 @@ export function getMarkdownRecipeById(id: string): MarkdownRecipe | null {
 const MD_PLACEHOLDER_IMAGE = "https://images.unsplash.com/photo-1495521821757-a1efb6729352?auto=format&fit=crop&q=80&w=800";
 
 /**
- * Import markdown recipes into MariaDB (INSERT ... ON DUPLICATE KEY skip).
+ * Import markdown recipes into Supabase (INSERT ... ON CONFLICT DO NOTHING).
  * Once imported, they become regular editable recipes.
  * Existing recipes with the same ID are NOT overwritten (preserves user edits).
  */
-export async function importMarkdownToDatabase(): Promise<void> {
+export async function importMarkdownToSupabase(): Promise<void> {
   const mdRecipes = getMarkdownRecipes();
   if (mdRecipes.length === 0) return;
 
@@ -236,49 +235,35 @@ export async function importMarkdownToDatabase(): Promise<void> {
       id: md.id,
       title: md.title,
       image: MD_PLACEHOLDER_IMAGE,
-      tags: JSON.stringify(md.tags),
+      tags: md.tags,
       type: "standard",
-      ingredients: JSON.stringify(md.ingredients),
-      steps: JSON.stringify(md.steps.map((s) => ({ step: s.step, description: s.description }))),
+      ingredients: md.ingredients,
+      steps: md.steps.map((s) => ({ step: s.step, description: s.description })),
       chef_tips: JSON.stringify({
         text: "",
         url: md.sourceUrl || "",
       }),
-      is_weekly_favorite: 0,
-      is_draft: 0,
+      is_weekly_favorite: false,
+      is_draft: false,
     };
 
     // Check if already exists
-    const [existing] = await db.query<RowDataPacket[]>(
-      "SELECT id FROM recipes WHERE id = ?",
-      [md.id]
-    );
+    const { data: existing } = await supabase
+      .from("recipes")
+      .select("id")
+      .eq("id", md.id)
+      .single();
 
-    if (existing.length > 0) {
+    if (existing) {
       // Already imported — skip (preserves user edits)
       continue;
     }
 
-    try {
-      await db.query(
-        `INSERT INTO recipes (id, title, image, tags, type, ingredients, steps, chef_tips, is_weekly_favorite, is_draft)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [
-          row.id,
-          row.title,
-          row.image,
-          row.tags,
-          row.type,
-          row.ingredients,
-          row.steps,
-          row.chef_tips,
-          row.is_weekly_favorite,
-          row.is_draft,
-        ]
-      );
-      console.log(`✅ Imported markdown recipe: ${md.title}`);
-    } catch (error: any) {
+    const { error } = await supabase.from("recipes").insert(row);
+    if (error) {
       console.error(`Error importing markdown recipe "${md.title}":`, error.message);
+    } else {
+      console.log(`✅ Imported markdown recipe: ${md.title}`);
     }
   }
 }
