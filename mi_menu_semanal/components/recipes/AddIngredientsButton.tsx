@@ -60,8 +60,12 @@ export function AddIngredientsButton({ ingredients }: Props) {
   };
 
   return (
-    <button onClick={handleAdd} className="w-full bg-[#0B3B3C] text-white py-3 md:py-4 rounded-xl md:rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-[#082a2b] transition-colors text-base md:text-[17px] shadow-md">
-      <span className="material-symbols-outlined text-[20px] md:text-[22px]">list_alt</span>
+    <button 
+      type="button"
+      onClick={handleAdd} 
+      className="w-full mt-8 md:mt-10 py-4 md:py-5 bg-primary text-on-primary rounded-2xl font-bold text-sm md:text-base flex items-center justify-center gap-3 active:scale-95 transition-all hover:bg-primary-container shadow-md cursor-pointer"
+    >
+      <span className="material-symbols-outlined text-xl md:text-2xl" data-icon="list_alt">list_alt</span>
       Añadir a la lista
     </button>
   );

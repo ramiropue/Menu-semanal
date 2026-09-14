@@ -35,20 +35,20 @@ export function RecipeActions({ recipeId }: RecipeActionsProps) {
   };
 
   return (
-    <div className="flex flex-col md:flex-row gap-3 md:gap-4 pt-4 md:pt-6 px-1 md:px-2">
+    <div className="flex flex-wrap items-center gap-4 mt-10 md:mt-14">
       <Link 
         href={`/recetas/nueva?edit=${recipeId}`}
-        className="flex-1 bg-transparent border-2 border-[#D1E6ED] text-[#0B3B3C] py-3 md:py-4 rounded-xl md:rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-[#D1E6ED]/50 transition-colors text-base md:text-[17px] cursor-pointer"
+        className="flex-1 sm:flex-initial flex items-center justify-center gap-2 px-6 py-3.5 md:py-4 rounded-2xl border-2 border-primary/20 text-primary font-bold text-sm md:text-base hover:bg-primary/5 active:scale-95 transition-all cursor-pointer"
       >
-        <span className="material-symbols-outlined text-[20px] md:text-[22px]">edit</span>
+        <span className="material-symbols-outlined text-xl">edit</span>
         Modificar
       </Link>
       <button 
         type="button"
         onClick={handleDelete}
-        className="flex-1 bg-[#FAD9D0] text-[#B93B11] py-3 md:py-4 rounded-xl md:rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-[#F8C8BA] transition-colors text-base md:text-[17px] cursor-pointer"
+        className="flex-1 sm:flex-initial flex items-center justify-center gap-2 px-6 py-3.5 md:py-4 rounded-2xl bg-error/10 text-error font-bold text-sm md:text-base hover:bg-error/20 active:scale-95 transition-all cursor-pointer"
       >
-        <span className="material-symbols-outlined text-[20px] md:text-[22px]">delete</span>
+        <span className="material-symbols-outlined text-xl">delete</span>
         Eliminar
       </button>
     </div>
