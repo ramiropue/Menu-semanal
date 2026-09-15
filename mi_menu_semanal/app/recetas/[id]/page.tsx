@@ -79,7 +79,7 @@ export default async function RecipeDetailPage({
           </div>
 
           {/* Título y badge en el banner */}
-          <div className="absolute bottom-16 sm:bottom-20 md:bottom-32 lg:bottom-40 xl:bottom-44 left-0 right-0 px-6 z-10 pointer-events-none">
+          <div className="absolute bottom-16 sm:bottom-20 md:bottom-[120px] lg:bottom-[160px] left-0 right-0 px-6 z-10 pointer-events-none">
             <div className="max-w-7xl mx-auto">
               <span className="bg-secondary-container text-white px-4 py-1 rounded-full text-xs font-bold uppercase tracking-widest mb-3 inline-block shadow-sm pointer-events-auto">
                 Premium
