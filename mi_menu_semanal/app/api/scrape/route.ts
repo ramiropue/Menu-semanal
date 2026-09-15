@@ -1,13 +1,37 @@
 import { NextResponse } from 'next/server';
 import { GoogleGenAI } from '@google/genai';
 import * as cheerio from 'cheerio';
+import { validateUrl, safeFetch } from '@/lib/security/ssrfValidator';
+
+// ─── Kill Switch ──────────────────────────────────────────────────────────────
+// Set SCRAPE_ENABLED=false in production to disable this endpoint entirely.
+// When unset or set to any other value, the endpoint is enabled by default.
+const SCRAPE_ENABLED = process.env.SCRAPE_ENABLED !== 'false';
 
 export async function POST(request: Request) {
+  // Kill switch: return 503 when disabled in production
+  if (!SCRAPE_ENABLED) {
+    return NextResponse.json(
+      { error: 'El servicio de scraping está temporalmente deshabilitado.' },
+      { status: 503 }
+    );
+  }
+
   try {
     const { url } = await request.json();
 
-    if (!url) {
+    if (!url || typeof url !== 'string') {
       return NextResponse.json({ error: 'Debes proporcionar una URL válida' }, { status: 400 });
+    }
+
+    // ─── SSRF Validation ────────────────────────────────────────────────
+    const urlValidation = validateUrl(url);
+    if (!urlValidation.valid) {
+      console.warn(`[Scraper] SSRF blocked: ${urlValidation.reason} — URL: ${url}`);
+      return NextResponse.json(
+        { error: 'La URL proporcionada no es válida o apunta a un destino no permitido.' },
+        { status: 400 }
+      );
     }
 
     if (!process.env.GEMINI_API_KEY) {
@@ -17,10 +41,23 @@ export async function POST(request: Request) {
     const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
     // Resolver URL acortada (vm.tiktok.com, bit.ly, etc.)
+    // Using safeFetch with manual redirect to validate each hop
     let resolvedUrl = url;
     try {
       const headRes = await fetch(url, { method: 'HEAD', redirect: 'follow' });
-      resolvedUrl = headRes.url || url;
+      const finalUrl = headRes.url || url;
+
+      // Validate the resolved URL too (in case the redirect leads to a private IP)
+      const resolvedValidation = validateUrl(finalUrl);
+      if (!resolvedValidation.valid) {
+        console.warn(`[Scraper] SSRF blocked after redirect: ${resolvedValidation.reason} — Final URL: ${finalUrl}`);
+        return NextResponse.json(
+          { error: 'La URL redirige a un destino no permitido.' },
+          { status: 400 }
+        );
+      }
+
+      resolvedUrl = finalUrl;
       console.log(`[Scraper] URL resuelta: ${resolvedUrl}`);
     } catch {
       console.log(`[Scraper] No se pudo resolver la URL, usando la original`);
@@ -34,14 +71,19 @@ export async function POST(request: Request) {
     if (resolvedUrl.includes('tiktok.com')) {
       console.log(`[Scraper] Detectada URL de TikTok. Intentando oEmbed API...`);
       try {
-        const oembedRes = await fetch(`https://www.tiktok.com/oembed?url=${resolvedUrl}`);
-        if (oembedRes.ok) {
-          const oembedData = await oembedRes.json();
-          if (oembedData.title) {
-            optimizedPayload = `Título y Descripción del Vídeo de TikTok:\n${oembedData.title}\n\n`;
-            console.log(`[Scraper] TikTok oEmbed extraído con éxito.`);
-            if (oembedData.thumbnail_url) {
-              extractedImageUrl = oembedData.thumbnail_url;
+        const oembedUrl = `https://www.tiktok.com/oembed?url=${encodeURIComponent(resolvedUrl)}`;
+        // Validate the oEmbed URL too
+        const oembedValidation = validateUrl(oembedUrl);
+        if (oembedValidation.valid) {
+          const oembedRes = await fetch(oembedUrl);
+          if (oembedRes.ok) {
+            const oembedData = await oembedRes.json();
+            if (oembedData.title) {
+              optimizedPayload = `Título y Descripción del Vídeo de TikTok:\n${oembedData.title}\n\n`;
+              console.log(`[Scraper] TikTok oEmbed extraído con éxito.`);
+              if (oembedData.thumbnail_url) {
+                extractedImageUrl = oembedData.thumbnail_url;
+              }
             }
           }
         }
@@ -53,38 +95,35 @@ export async function POST(request: Request) {
     // 2. Intentar descargar el HTML de la URL si no tenemos datos suficientes
     if (!optimizedPayload || optimizedPayload.length < 50) {
       try {
-        const response = await fetch(resolvedUrl, { // Cambiado a usar resolvedUrl
-          headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-            'Accept-Language': 'es-ES,es;q=0.8,en-US;q=0.5,en;q=0.3',
-          },
-          redirect: 'follow',
+        // Use safeFetch for SSRF-protected HTML download
+        const { body: html } = await safeFetch(resolvedUrl, {
+          maxRedirects: 5,
+          timeoutMs: 10_000,
+          maxBytes: 2 * 1024 * 1024, // 2 MB
+          allowedContentTypes: ['text/html', 'application/xhtml+xml', 'application/xml', 'text/xml'],
         });
 
-        if (response.ok) {
-          const html = await response.text();
-          const $ = cheerio.load(html);
+        const $ = cheerio.load(html);
 
-          const sigiState = $('#SIGI_STATE').html() || '';
-          const universalData = $('#__UNIVERSAL_DATA_FOR_REHYDRATION__').html() || '';
-          const nextData = $('#__NEXT_DATA__').html() || '';
-          const metaDescriptions = $(
-            'meta[name="description"], meta[property="og:description"], meta[property="og:title"], meta[name="twitter:description"]'
-          ).map((_i, el) => $(el).attr('content')).get().join(' | ');
+        const sigiState = $('#SIGI_STATE').html() || '';
+        const universalData = $('#__UNIVERSAL_DATA_FOR_REHYDRATION__').html() || '';
+        const nextData = $('#__NEXT_DATA__').html() || '';
+        const metaDescriptions = $(
+          'meta[name="description"], meta[property="og:description"], meta[property="og:title"], meta[name="twitter:description"]'
+        ).map((_i, el) => $(el).attr('content')).get().join(' | ');
 
-          extractedImageUrl = $('meta[property="og:image"]').attr('content') || $('meta[name="twitter:image"]').attr('content') || '';
+        extractedImageUrl = $('meta[property="og:image"]').attr('content') || $('meta[name="twitter:image"]').attr('content') || '';
 
-          const jsonLd = $('script[type="application/ld+json"]').map((_i, el) => $(el).html()).get().join('\n');
+        const jsonLd = $('script[type="application/ld+json"]').map((_i, el) => $(el).html()).get().join('\n');
 
-          $('svg, style, img, link, iframe, video, audio, script, noscript, header, footer, nav').remove();
-          const cleanText = $('body').text().replace(/\\s+/g, ' ').trim();
+        $('svg, style, img, link, iframe, video, audio, script, noscript, header, footer, nav').remove();
+        const cleanText = $('body').text().replace(/\\s+/g, ' ').trim();
 
-          if (cleanText.length < 100 && !jsonLd && !sigiState && !universalData) {
-            console.log(`[Scraper] HTML demasiado corto, se marcará como fallido para usar Google Search.`);
-            fetchFailed = true;
-          } else {
-            optimizedPayload = `
+        if (cleanText.length < 100 && !jsonLd && !sigiState && !universalData) {
+          console.log(`[Scraper] HTML demasiado corto, se marcará como fallido para usar Google Search.`);
+          fetchFailed = true;
+        } else {
+          optimizedPayload = `
 Metadatos: ${metaDescriptions}
 
 JSON-LD (datos estructurados):
@@ -98,13 +137,17 @@ ${sigiState.substring(0, 20000)}
 ${universalData.substring(0, 20000)}
 ${nextData.substring(0, 10000)}
 `;
-          }
-        } else {
-          console.log(`[Scraper] Fetch falló con status ${response.status}`);
-          fetchFailed = true;
         }
       } catch (fetchError) {
-        console.log(`[Scraper] Fetch error: ${fetchError}`);
+        const errorMsg = fetchError instanceof Error ? fetchError.message : String(fetchError);
+        if (errorMsg.startsWith('SSRF blocked')) {
+          console.warn(`[Scraper] ${errorMsg}`);
+          return NextResponse.json(
+            { error: 'La URL proporcionada no es válida o apunta a un destino no permitido.' },
+            { status: 400 }
+          );
+        }
+        console.log(`[Scraper] Fetch error: ${errorMsg}`);
         fetchFailed = true;
       }
     }
