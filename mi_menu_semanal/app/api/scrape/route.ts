@@ -3,19 +3,30 @@ import { GoogleGenAI } from '@google/genai';
 import * as cheerio from 'cheerio';
 import { validateUrl, safeFetch } from '@/lib/security/ssrfValidator';
 
-// ─── Kill Switch (fail-closed) ────────────────────────────────────────────────
-// Only SCRAPE_ENABLED=true enables this endpoint.
-// When absent, 'false', or any other value, the endpoint returns 503.
-const SCRAPE_ENABLED = process.env.SCRAPE_ENABLED === 'true';
+// ─── Kill Switch (fail-closed + production block) ─────────────────────────────
+// The endpoint is disabled unless ALL conditions are met:
+//   1. SCRAPE_ENABLED === 'true'
+//   2. NODE_ENV !== 'production'
+// During Phase 0, production is unconditionally blocked regardless of
+// SCRAPE_ENABLED. This restriction will be lifted only after implementing
+// authentication, rate limiting, and a DNS-safe transport (e.g. Undici
+// connector with IP pinning).
+function isScrapeAllowed(): boolean {
+  if (process.env.NODE_ENV === 'production') return false;
+  return process.env.SCRAPE_ENABLED === 'true';
+}
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const HEAD_TIMEOUT_MS = 5_000;
 const OEMBED_TIMEOUT_MS = 5_000;
-const OEMBED_MAX_BYTES = 256 * 1024; // 256 KB for oEmbed JSON
+const OEMBED_MAX_BYTES = 256 * 1024; // 256 KB
+
+function getFetchTimeoutMs(): number {
+  const parsed = parseInt(process.env.SCRAPE_FETCH_TIMEOUT_MS || '', 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 10_000;
+}
 
 /**
- * Sanitize a URL for safe logging: strips query strings and credentials.
- * Only logs scheme + hostname + pathname.
+ * Sanitize a URL for logging: strips query strings and credentials.
  */
 function sanitizeUrlForLog(urlString: string): string {
   try {
@@ -27,8 +38,7 @@ function sanitizeUrlForLog(urlString: string): string {
 }
 
 export async function POST(request: Request) {
-  // Kill switch: return 503 when disabled
-  if (!SCRAPE_ENABLED) {
+  if (!isScrapeAllowed()) {
     return NextResponse.json(
       { error: 'El servicio de scraping está temporalmente deshabilitado.' },
       { status: 503 }
@@ -58,38 +68,15 @@ export async function POST(request: Request) {
 
     const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
-    // ─── Resolve shortened URLs (vm.tiktok.com, bit.ly, etc.) ───────────
-    // HEAD with timeout and post-redirect SSRF validation
-    let resolvedUrl = url;
-    try {
-      const headController = new AbortController();
-      const headTimer = setTimeout(() => headController.abort(), HEAD_TIMEOUT_MS);
-      try {
-        const headRes = await fetch(url, {
-          method: 'HEAD',
-          redirect: 'follow',
-          signal: headController.signal,
-        });
-        const finalUrl = headRes.url || url;
-
-        // Validate the resolved URL (in case the redirect leads to a private IP)
-        const resolvedValidation = validateUrl(finalUrl);
-        if (!resolvedValidation.valid) {
-          console.warn(`[Scraper] SSRF blocked after redirect: ${resolvedValidation.reason}`);
-          return NextResponse.json(
-            { error: 'La URL redirige a un destino no permitido.' },
-            { status: 400 }
-          );
-        }
-
-        resolvedUrl = finalUrl;
-        console.log(`[Scraper] URL resuelta: ${sanitizeUrlForLog(resolvedUrl)}`);
-      } finally {
-        clearTimeout(headTimer);
-      }
-    } catch {
-      console.log(`[Scraper] No se pudo resolver la URL, usando la original`);
-    }
+    // ─── NOTE: No HEAD redirect resolution ──────────────────────────────
+    // Previously this code did `fetch(url, { redirect: 'follow' })` to
+    // resolve shortened URLs. This was removed because redirect: 'follow'
+    // allows the runtime to connect to any redirect destination (including
+    // private IPs) BEFORE we can validate it.
+    //
+    // Shortened URLs (vm.tiktok.com, bit.ly, etc.) are now resolved by
+    // safeFetch() which validates each redirect hop individually.
+    const resolvedUrl = url;
 
     // ─── 1. Platform-specific APIs (e.g., TikTok oEmbed) ────────────────
     let optimizedPayload = '';
@@ -100,36 +87,35 @@ export async function POST(request: Request) {
       console.log(`[Scraper] Detectada URL de TikTok. Intentando oEmbed API...`);
       try {
         const oembedUrl = `https://www.tiktok.com/oembed?url=${encodeURIComponent(resolvedUrl)}`;
-        // Validate the oEmbed URL
         const oembedValidation = validateUrl(oembedUrl);
         if (oembedValidation.valid) {
-          // Use AbortController for timeout + manual redirect + byte limit
           const oembedController = new AbortController();
           const oembedTimer = setTimeout(() => oembedController.abort(), OEMBED_TIMEOUT_MS);
           try {
             const oembedRes = await fetch(oembedUrl, {
-              redirect: 'manual', // Don't follow redirects blindly
+              redirect: 'manual',
               signal: oembedController.signal,
               headers: { 'Accept': 'application/json' },
             });
 
-            // Reject redirects from oEmbed (unexpected behavior)
             if (oembedRes.status >= 300 && oembedRes.status < 400) {
+              // Cancel body and reject unexpected redirects
+              if (oembedRes.body) await oembedRes.body.cancel().catch(() => {});
               console.warn(`[Scraper] oEmbed returned unexpected redirect, skipping`);
             } else if (oembedRes.ok) {
-              // Read with byte limit
               const reader = oembedRes.body?.getReader();
               if (reader) {
                 const chunks: Uint8Array[] = [];
                 let totalBytes = 0;
+                let oversized = false;
                 try {
                   while (true) {
                     const { done, value } = await reader.read();
                     if (done) break;
                     totalBytes += value.byteLength;
                     if (totalBytes > OEMBED_MAX_BYTES) {
-                      reader.cancel();
-                      console.warn(`[Scraper] oEmbed response exceeds ${OEMBED_MAX_BYTES} bytes, skipping`);
+                      await reader.cancel();
+                      oversized = true;
                       break;
                     }
                     chunks.push(value);
@@ -138,7 +124,7 @@ export async function POST(request: Request) {
                   reader.releaseLock();
                 }
 
-                if (totalBytes <= OEMBED_MAX_BYTES) {
+                if (!oversized) {
                   const decoder = new TextDecoder('utf-8', { fatal: false });
                   const merged = chunks.reduce((acc, chunk) => {
                     const m = new Uint8Array(acc.length + chunk.length);
@@ -157,6 +143,9 @@ export async function POST(request: Request) {
                   }
                 }
               }
+            } else {
+              // Non-redirect, non-ok: cancel body
+              if (oembedRes.body) await oembedRes.body.cancel().catch(() => {});
             }
           } finally {
             clearTimeout(oembedTimer);
@@ -167,16 +156,13 @@ export async function POST(request: Request) {
       }
     }
 
-    // ─── 2. Download HTML via safeFetch (SSRF-protected) ────────────────
+    // ─── 2. Download HTML via safeFetch ──────────────────────────────────
     if (!optimizedPayload || optimizedPayload.length < 50) {
       try {
-        // safeFetch validates each redirect hop, enforces timeout covering
-        // connection + body read, streams with per-chunk byte counting,
-        // and cancels the response when the limit is exceeded.
         const { body: html } = await safeFetch(resolvedUrl, {
           maxRedirects: 5,
-          timeoutMs: 10_000,
-          maxBytes: 2 * 1024 * 1024, // 2 MB
+          timeoutMs: getFetchTimeoutMs(),
+          maxBytes: 2 * 1024 * 1024,
           allowedContentTypes: ['text/html', 'application/xhtml+xml', 'application/xml', 'text/xml'],
         });
 
@@ -197,7 +183,6 @@ export async function POST(request: Request) {
         const cleanText = $('body').text().replace(/\\s+/g, ' ').trim();
 
         if (cleanText.length < 100 && !jsonLd && !sigiState && !universalData) {
-          console.log(`[Scraper] HTML demasiado corto, se marcará como fallido para usar Google Search.`);
           fetchFailed = true;
         } else {
           optimizedPayload = `
@@ -322,7 +307,6 @@ ${optimizedPayload}
 
     console.log(`[Scraper] Respuesta de Gemini recibida (${text.length} chars)`);
 
-    // Limpiar respuesta: quitar backticks de markdown si los hay
     let cleanJson = text.trim();
     if (cleanJson.startsWith('```json')) {
       cleanJson = cleanJson.slice(7);
@@ -336,7 +320,6 @@ ${optimizedPayload}
 
     const parsedData = JSON.parse(cleanJson);
     
-    // Inyectar la imagen extraída si Gemini no encontró una
     if (!parsedData.imageUrl && extractedImageUrl) {
       parsedData.imageUrl = extractedImageUrl;
     }

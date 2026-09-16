@@ -1,9 +1,50 @@
 /**
  * lib/security/ssrfValidator.ts
  *
- * Validates URLs before server-side fetching to prevent SSRF attacks.
- * Blocks private IPs, loopback, link-local, multicast, metadata endpoints,
- * and non-HTTP(S) protocols.
+ * URL validation for server-side requests.
+ *
+ * ## What this module provides:
+ * - Protocol allowlist (http/https only)
+ * - IP range blocking (private, loopback, link-local, multicast, metadata)
+ * - IPv4/IPv6 including mapped/hex-normalized forms
+ * - Localhost variant blocking
+ * - Per-hop redirect validation with manual redirect handling
+ * - Streaming body download with byte counting and cancellation
+ * - Single deadline timeout covering all redirects + connection + body read
+ *
+ * ## What this module does NOT provide (SSRF gaps):
+ * - DNS rebinding protection: hostnames are validated as strings, but the
+ *   runtime `fetch()` performs its own DNS resolution. A hostname that
+ *   resolves to a private IP WILL bypass this validation.
+ * - `validateResolvedIp()` is exported but NOT used by `safeFetch()` because
+ *   Node.js `fetch()` does not expose a hook to inspect the resolved IP
+ *   before connecting.
+ *
+ * ## Enabling in production requires one of:
+ * 1. **Domain allowlist** — restrict to known recipe domains only.
+ * 2. **Egress proxy** — route outbound requests through a proxy that
+ *    validates resolved IPs before forwarding.
+ * 3. **Undici custom connector** — use `undici.Agent` with a `connect`
+ *    callback that resolves DNS, validates the IP with `validateResolvedIp()`,
+ *    and pins the connection to that IP while preserving SNI/TLS via the
+ *    `servername` option. Example (not implemented):
+ *    ```
+ *    const agent = new Agent({
+ *      connect(opts, cb) {
+ *        dns.lookup(opts.hostname, (err, ip) => {
+ *          if (err) return cb(err, null);
+ *          if (!validateResolvedIp(ip).valid)
+ *            return cb(new Error('Private IP'), null);
+ *          opts.hostname = ip;
+ *          opts.servername = opts.servername || originalHostname;
+ *          tls.connect(opts, cb);
+ *        });
+ *      }
+ *    });
+ *    ```
+ *
+ * Until one of these is implemented, `/api/scrape` MUST remain disabled
+ * in production via `SCRAPE_ENABLED` + `NODE_ENV` checks.
  */
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -38,13 +79,11 @@ const DOMAIN_ALLOWLIST: string[] = [];
  * Parse an IPv4 address string into 4 octets, or null if invalid.
  */
 function parseIPv4(ip: string): number[] | null {
-  // Block octal (0-prefixed), hex (0x-prefixed), and decimal-encoded IPs
   const parts = ip.split(".");
   if (parts.length !== 4) return null;
 
   const octets: number[] = [];
   for (const part of parts) {
-    // Reject empty parts, leading zeros (octal), hex, or non-numeric
     if (!/^(?:0|[1-9]\d{0,2})$/.test(part)) return null;
     const n = Number(part);
     if (n < 0 || n > 255) return null;
@@ -59,35 +98,20 @@ function parseIPv4(ip: string): number[] | null {
 function isPrivateIPv4(octets: number[]): boolean {
   const [a, b] = octets;
 
-  // 0.0.0.0/8 — "This host on this network"
   if (a === 0) return true;
-  // 10.0.0.0/8 — Private
   if (a === 10) return true;
-  // 100.64.0.0/10 — Shared address space (CGN)
   if (a === 100 && b >= 64 && b <= 127) return true;
-  // 127.0.0.0/8 — Loopback
   if (a === 127) return true;
-  // 169.254.0.0/16 — Link-local
   if (a === 169 && b === 254) return true;
-  // 172.16.0.0/12 — Private
   if (a === 172 && b >= 16 && b <= 31) return true;
-  // 192.0.0.0/24 — IETF Protocol Assignments
   if (a === 192 && b === 0 && octets[2] === 0) return true;
-  // 192.0.2.0/24 — TEST-NET-1
   if (a === 192 && b === 0 && octets[2] === 2) return true;
-  // 192.88.99.0/24 — Deprecated 6to4 relay anycast
   if (a === 192 && b === 88 && octets[2] === 99) return true;
-  // 192.168.0.0/16 — Private
   if (a === 192 && b === 168) return true;
-  // 198.18.0.0/15 — Benchmark testing
   if (a === 198 && (b === 18 || b === 19)) return true;
-  // 198.51.100.0/24 — TEST-NET-2
   if (a === 198 && b === 51 && octets[2] === 100) return true;
-  // 203.0.113.0/24 — TEST-NET-3
   if (a === 203 && b === 0 && octets[2] === 113) return true;
-  // 224.0.0.0/4 — Multicast
   if (a >= 224 && a <= 239) return true;
-  // 240.0.0.0/4 — Reserved for future use
   if (a >= 240) return true;
 
   return false;
@@ -95,25 +119,19 @@ function isPrivateIPv4(octets: number[]): boolean {
 
 /**
  * Check if an IPv6 address string is private/reserved.
- * Also handles IPv4-mapped IPv6 (::ffff:x.x.x.x) and IPv4-compatible IPv6 (::x.x.x.x).
  */
 function isPrivateIPv6(ip: string): boolean {
   const lower = ip.toLowerCase();
 
-  // Unspecified address
   if (lower === "::" || lower === "::0") return true;
-  // Loopback
   if (lower === "::1") return true;
 
-  // IPv4-mapped IPv6: ::ffff:x.x.x.x (dotted-decimal form)
   const v4MappedMatch = lower.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/);
   if (v4MappedMatch) {
     const octets = parseIPv4(v4MappedMatch[1]);
     if (octets && isPrivateIPv4(octets)) return true;
   }
 
-  // IPv4-mapped IPv6 in hex form: ::ffff:HHHH:HHHH
-  // Node.js URL parser normalizes ::ffff:127.0.0.1 → ::ffff:7f00:1
   const v4MappedHexMatch = lower.match(
     /^::ffff:([0-9a-f]{1,4}):([0-9a-f]{1,4})$/
   );
@@ -124,14 +142,12 @@ function isPrivateIPv6(ip: string): boolean {
     if (isPrivateIPv4(octets)) return true;
   }
 
-  // IPv4-compatible IPv6: ::x.x.x.x
   const v4CompatMatch = lower.match(/^::(\d+\.\d+\.\d+\.\d+)$/);
   if (v4CompatMatch) {
     const octets = parseIPv4(v4CompatMatch[1]);
     if (octets && isPrivateIPv4(octets)) return true;
   }
 
-  // IPv4-compatible IPv6 in hex form: ::HHHH:HHHH
   const v4CompatHexMatch = lower.match(
     /^::([0-9a-f]{1,4}):([0-9a-f]{1,4})$/
   );
@@ -142,38 +158,26 @@ function isPrivateIPv6(ip: string): boolean {
     if (isPrivateIPv4(octets)) return true;
   }
 
-  // fc00::/7 — Unique local address
   if (/^f[cd]/.test(lower)) return true;
-  // fe80::/10 — Link-local
   if (/^fe[89ab]/.test(lower)) return true;
-  // ff00::/8 — Multicast
   if (lower.startsWith("ff")) return true;
-  // 100::  (deprecated 6to4, Teredo, etc.)
   if (lower.startsWith("100::")) return true;
-  // 2001:db8::/32 — Documentation
   if (lower.startsWith("2001:db8:")) return true;
 
   return false;
 }
 
-/**
- * Check if a hostname string is an IP literal and if so, whether it's private.
- * Returns { isIp: true, isPrivate: true/false } or { isIp: false }.
- */
 function checkIpHostname(hostname: string): {
   isIp: boolean;
   isPrivate: boolean;
 } {
-  // Strip brackets for IPv6 literals
   const cleanHost = hostname.replace(/^\[|\]$/g, "");
 
-  // Check IPv4
   const v4 = parseIPv4(cleanHost);
   if (v4) {
     return { isIp: true, isPrivate: isPrivateIPv4(v4) };
   }
 
-  // Check IPv6
   if (cleanHost.includes(":")) {
     return { isIp: true, isPrivate: isPrivateIPv6(cleanHost) };
   }
@@ -183,11 +187,7 @@ function checkIpHostname(hostname: string): {
 
 // ─── URL Validation ───────────────────────────────────────────────────────────
 
-/**
- * Validate a URL for safety before making a server-side request.
- */
 export function validateUrl(urlString: string): SsrfValidationResult {
-  // Reject empty or whitespace-only
   if (!urlString || !urlString.trim()) {
     return { valid: false, reason: "URL is empty" };
   }
@@ -199,12 +199,10 @@ export function validateUrl(urlString: string): SsrfValidationResult {
     return { valid: false, reason: "URL is malformed" };
   }
 
-  // Block credentials in URL
   if (parsed.username || parsed.password) {
     return { valid: false, reason: "URL contains credentials" };
   }
 
-  // Protocol check
   if (!ALLOWED_PROTOCOLS.has(parsed.protocol)) {
     return {
       valid: false,
@@ -212,13 +210,11 @@ export function validateUrl(urlString: string): SsrfValidationResult {
     };
   }
 
-  // Hostname must exist
   const hostname = parsed.hostname;
   if (!hostname) {
     return { valid: false, reason: "URL has no hostname" };
   }
 
-  // Block hostnames with trailing dot (DNS root) — potential bypass
   if (hostname.endsWith(".")) {
     return {
       valid: false,
@@ -226,7 +222,6 @@ export function validateUrl(urlString: string): SsrfValidationResult {
     };
   }
 
-  // Block localhost variants
   const lowerHost = hostname.toLowerCase();
   if (
     lowerHost === "localhost" ||
@@ -236,13 +231,11 @@ export function validateUrl(urlString: string): SsrfValidationResult {
     return { valid: false, reason: "Localhost is not allowed" };
   }
 
-  // Check if hostname is a direct IP address
   const ipCheck = checkIpHostname(hostname);
   if (ipCheck.isIp && ipCheck.isPrivate) {
     return { valid: false, reason: "Private/reserved IP address is not allowed" };
   }
 
-  // Domain allowlist (if configured)
   if (DOMAIN_ALLOWLIST.length > 0) {
     const matchesAllowlist = DOMAIN_ALLOWLIST.some(
       (d) => lowerHost === d || lowerHost.endsWith("." + d)
@@ -257,7 +250,8 @@ export function validateUrl(urlString: string): SsrfValidationResult {
 
 /**
  * Validate a resolved IP address (from DNS) before connecting.
- * Call this after DNS resolution to block DNS rebinding attacks.
+ * Exported for future use with a custom Undici connector.
+ * NOT currently used by safeFetch — see module-level docs for rationale.
  */
 export function validateResolvedIp(ip: string): SsrfValidationResult {
   const v4 = parseIPv4(ip);
@@ -280,9 +274,6 @@ export function validateResolvedIp(ip: string): SsrfValidationResult {
 
 // ─── Safe Fetch ───────────────────────────────────────────────────────────────
 
-/**
- * Configuration for safeFetch.
- */
 export interface SafeFetchOptions {
   maxRedirects?: number;
   timeoutMs?: number;
@@ -291,45 +282,18 @@ export interface SafeFetchOptions {
 }
 
 /**
- * Fetch a URL with SSRF protections applied at each redirect hop.
- * Returns the response body as a string, truncated to maxBytes.
+ * Fetch a URL with URL-level SSRF protections.
  *
- * ## Security Properties
- * - Each redirect hop is validated against the SSRF rules before following.
- * - A single AbortController timeout covers connection + full body read.
- * - Body is streamed with per-chunk byte counting; response is cancelled
- *   immediately when the limit is exceeded (not buffered then checked).
- * - Content-Type is validated before reading the body.
+ * This is NOT a complete SSRF defense — see module-level docs.
+ * It provides:
+ * - Per-hop redirect URL validation (redirect: "manual")
+ * - Single deadline AbortController covering ALL redirects + connection + body
+ * - Streaming byte counting with immediate cancellation
+ * - Content-Type validation
+ * - Redirect body consumption/cancellation before following next hop
  *
- * ## DNS Rebinding Limitation (KNOWN)
- *
- * There is a TOCTOU (Time-Of-Check-Time-Of-Use) gap between URL validation
- * and the actual TCP connection. `safeFetch()` validates the URL string
- * (hostname, protocol, IP ranges) but then delegates to the runtime `fetch()`
- * which performs its own DNS resolution. A malicious DNS server could return
- * a public IP during validation and a private IP (e.g., 169.254.169.254)
- * during the actual connection — this is a DNS rebinding attack.
- *
- * **Why we can't fully fix this in user-space:**
- * - Node.js `fetch()` (undici) does not expose a hook to inspect the
- *   resolved IP before connecting.
- * - Performing `dns.lookup()` separately and then connecting to the
- *   resolved IP doesn't help because (a) the second DNS resolution by
- *   `fetch()` could return a different IP, and (b) setting the `Host`
- *   header manually may break TLS certificate validation.
- * - The `validateResolvedIp()` function is exported for future use if
- *   a custom HTTP agent with IP pinning becomes available.
- *
- * **Mitigation strategy:**
- * 1. Keep `/api/scrape` disabled in production (`SCRAPE_ENABLED !== 'true'`).
- * 2. When enabled, the endpoint is only reachable through Netlify which
- *    runs in an isolated serverless environment (no access to cloud
- *    metadata services from Netlify Functions).
- * 3. All private IP ranges are blocked at the URL string level, which
- *    prevents the most common SSRF vectors (direct IP, localhost, etc.).
- * 4. Rate limiting and monitoring should be added before enabling in prod.
- *
- * Throws on any validation failure, timeout, or excessive size.
+ * The timer is set ONCE at the start and cleared ONLY in the outermost
+ * finally block, ensuring the deadline covers the entire operation.
  */
 export async function safeFetch(
   urlString: string,
@@ -350,117 +314,170 @@ export async function safeFetch(
     throw new Error(`SSRF blocked: ${initial.reason}`);
   }
 
-  while (true) {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), timeoutMs);
+  // Single deadline covering ALL redirects, connections, and body reads
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
 
-    let response: Response;
-    try {
-      response = await fetch(currentUrl, {
-        method: "GET",
-        redirect: "manual", // Handle redirects manually to validate each hop
-        signal: controller.signal,
-        headers: {
-          "User-Agent":
-            "Mozilla/5.0 (compatible; MenuSemanal/2.0; +https://github.com/ramiropue/Menu-semanal)",
-          Accept:
-            "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-          "Accept-Language": "es-ES,es;q=0.8,en-US;q=0.5,en;q=0.3",
-        },
-      });
-    } catch (error: unknown) {
-      clearTimeout(timer);
-      if (error instanceof DOMException && error.name === "AbortError") {
-        throw new Error(`SSRF blocked: Request timed out after ${timeoutMs}ms`);
-      }
-      throw error;
-    } finally {
-      clearTimeout(timer);
-    }
-
-    // Handle redirects
-    if (
-      response.status >= 300 &&
-      response.status < 400 &&
-      response.headers.has("location")
-    ) {
-      redirectCount++;
-      if (redirectCount > maxRedirects) {
-        throw new Error(
-          `SSRF blocked: Too many redirects (max ${maxRedirects})`
-        );
-      }
-
-      const location = response.headers.get("location")!;
-      let nextUrl: string;
+  try {
+    while (true) {
+      let response: Response;
       try {
-        nextUrl = new URL(location, currentUrl).href;
-      } catch {
-        throw new Error("SSRF blocked: Invalid redirect URL");
-      }
-
-      // Validate each redirect destination
-      const redirectCheck = validateUrl(nextUrl);
-      if (!redirectCheck.valid) {
-        throw new Error(
-          `SSRF blocked at redirect: ${redirectCheck.reason}`
-        );
-      }
-
-      currentUrl = nextUrl;
-      continue;
-    }
-
-    // Check Content-Type
-    const contentType = response.headers.get("content-type") || "";
-    const mimeType = contentType.split(";")[0].trim().toLowerCase();
-    if (
-      allowedContentTypes.length > 0 &&
-      !allowedContentTypes.includes(mimeType)
-    ) {
-      throw new Error(
-        `SSRF blocked: Content-Type '${mimeType}' is not allowed`
-      );
-    }
-
-    // Read body with size limit
-    const reader = response.body?.getReader();
-    if (!reader) {
-      throw new Error("SSRF blocked: No response body");
-    }
-
-    const chunks: Uint8Array[] = [];
-    let totalBytes = 0;
-
-    try {
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        totalBytes += value.byteLength;
-        if (totalBytes > maxBytes) {
-          reader.cancel();
+        response = await fetch(currentUrl, {
+          method: "GET",
+          redirect: "manual",
+          signal: controller.signal,
+          headers: {
+            "User-Agent":
+              "Mozilla/5.0 (compatible; MenuSemanal/2.0; +https://github.com/ramiropue/Menu-semanal)",
+            Accept:
+              "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            "Accept-Language": "es-ES,es;q=0.8,en-US;q=0.5,en;q=0.3",
+          },
+        });
+      } catch (error: unknown) {
+        if (error instanceof DOMException && error.name === "AbortError") {
           throw new Error(
-            `SSRF blocked: Response exceeds ${maxBytes} bytes limit`
+            `SSRF blocked: Request timed out after ${timeoutMs}ms`
           );
         }
-        chunks.push(value);
+        throw error;
       }
-    } finally {
-      reader.releaseLock();
+
+      // Handle redirects
+      if (
+        response.status >= 300 &&
+        response.status < 400 &&
+        response.headers.has("location")
+      ) {
+        // Cancel the redirect response body before following
+        if (response.body) {
+          try {
+            await response.body.cancel();
+          } catch {
+            // Ignore cancel errors
+          }
+        }
+
+        redirectCount++;
+        if (redirectCount > maxRedirects) {
+          throw new Error(
+            `SSRF blocked: Too many redirects (max ${maxRedirects})`
+          );
+        }
+
+        const location = response.headers.get("location")!;
+        let nextUrl: string;
+        try {
+          nextUrl = new URL(location, currentUrl).href;
+        } catch {
+          throw new Error("SSRF blocked: Invalid redirect URL");
+        }
+
+        // Validate each redirect destination BEFORE following
+        const redirectCheck = validateUrl(nextUrl);
+        if (!redirectCheck.valid) {
+          throw new Error(
+            `SSRF blocked at redirect: ${redirectCheck.reason}`
+          );
+        }
+
+        currentUrl = nextUrl;
+        continue;
+      }
+
+      // Check Content-Type
+      const contentType = response.headers.get("content-type") || "";
+      const mimeType = contentType.split(";")[0].trim().toLowerCase();
+      if (
+        allowedContentTypes.length > 0 &&
+        !allowedContentTypes.includes(mimeType)
+      ) {
+        // Cancel body before throwing
+        if (response.body) {
+          try {
+            await response.body.cancel();
+          } catch {
+            // Ignore
+          }
+        }
+        throw new Error(
+          `SSRF blocked: Content-Type '${mimeType}' is not allowed`
+        );
+      }
+
+      // Read body with streaming byte counting
+      const reader = response.body?.getReader();
+      if (!reader) {
+        throw new Error("SSRF blocked: No response body");
+      }
+
+      const chunks: Uint8Array[] = [];
+      let totalBytes = 0;
+
+      const readChunk = async () => {
+        if (controller.signal.aborted) {
+          throw new Error(
+            `SSRF blocked: Request timed out after ${timeoutMs}ms`
+          );
+        }
+        return new Promise<ReadableStreamReadResult<Uint8Array>>(
+          (resolve, reject) => {
+            const onAbort = () => {
+              reader.cancel().catch(() => {});
+              reject(
+                new Error(
+                  `SSRF blocked: Request timed out after ${timeoutMs}ms`
+                )
+              );
+            };
+            controller.signal.addEventListener("abort", onAbort, { once: true });
+            reader.read().then(
+              (result) => {
+                controller.signal.removeEventListener("abort", onAbort);
+                resolve(result);
+              },
+              (err) => {
+                controller.signal.removeEventListener("abort", onAbort);
+                reject(err);
+              }
+            );
+          }
+        );
+      };
+
+      try {
+        while (true) {
+          const { done, value } = await readChunk();
+          if (done) break;
+
+          totalBytes += value.byteLength;
+          if (totalBytes > maxBytes) {
+            await reader.cancel();
+            throw new Error(
+              `SSRF blocked: Response exceeds ${maxBytes} bytes limit`
+            );
+          }
+          chunks.push(value);
+        }
+      } finally {
+        reader.releaseLock();
+      }
+
+      const decoder = new TextDecoder("utf-8", { fatal: false });
+      const body = decoder.decode(
+        chunks.reduce((acc, chunk) => {
+          const merged = new Uint8Array(acc.length + chunk.length);
+          merged.set(acc);
+          merged.set(chunk, acc.length);
+          return merged;
+        }, new Uint8Array(0))
+      );
+
+      return { body, finalUrl: currentUrl, contentType: mimeType };
     }
-
-    const decoder = new TextDecoder("utf-8", { fatal: false });
-    const body = decoder.decode(
-      chunks.reduce((acc, chunk) => {
-        const merged = new Uint8Array(acc.length + chunk.length);
-        merged.set(acc);
-        merged.set(chunk, acc.length);
-        return merged;
-      }, new Uint8Array(0))
-    );
-
-    return { body, finalUrl: currentUrl, contentType: mimeType };
+  } finally {
+    // Timer is cleared ONLY here — covers all redirects + connection + body
+    clearTimeout(timer);
   }
 }
 

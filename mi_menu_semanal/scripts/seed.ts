@@ -12,13 +12,22 @@
  *   5. tsx must be installed as a devDependency (not downloaded via npx).
  *
  * Usage:
- *   SEED_CONFIRM=yes npx tsx scripts/seed.ts
+ *   SEED_CONFIRM=yes npm run db:seed
+ *   # or: SEED_CONFIRM=yes npx tsx scripts/seed.ts
  *
  * The allowlist below contains ONLY development/staging project hostnames.
  * The production project must NEVER be added to this list.
  */
 
 import { createClient } from "@supabase/supabase-js";
+
+// ─── Denylist: Explicitly blocked production host patterns ───────────────────
+// Any host matching these patterns is blocked immediately, even if mistakenly
+// placed in ALLOWED_SUPABASE_HOSTS.
+const BLOCKED_SUPABASE_PATTERNS: (string | RegExp)[] = [
+  /prod/i,
+  /production/i,
+];
 
 // ─── Allowlist: ONLY dev/staging Supabase project hosts ───────────────────────
 // Format: "<project-ref>.supabase.co"
@@ -35,7 +44,7 @@ const SEED_CONFIRM = process.env.SEED_CONFIRM;
 if (SEED_CONFIRM !== "yes") {
   console.error(
     "❌ SEED_CONFIRM=yes is required to run this script.\n" +
-      "   Usage: SEED_CONFIRM=yes npx tsx scripts/seed.ts"
+      "   Usage: SEED_CONFIRM=yes npm run db:seed"
   );
   process.exit(1);
 }
@@ -52,15 +61,23 @@ if (!supabaseUrl || !supabaseKey) {
   process.exit(1);
 }
 
-// 3. Block production environment
-if (process.env.NODE_ENV === "production") {
+// 3. Block production and CI deployment environments
+const isProdEnv =
+  process.env.NODE_ENV === "production" ||
+  process.env.NETLIFY === "true" ||
+  process.env.CONTEXT === "production" ||
+  process.env.VERCEL_ENV === "production" ||
+  process.env.CI === "true";
+
+if (isProdEnv) {
   console.error(
-    "❌ This script must not be run with NODE_ENV=production."
+    "❌ This script must not be run in production or automated deployment environments.\n" +
+      "   Blocked by environment flag (NODE_ENV=production, NETLIFY, CONTEXT, VERCEL_ENV, or CI)."
   );
   process.exit(1);
 }
 
-// 4. Validate Supabase URL against the allowlist
+// 4. Validate Supabase URL
 let supabaseHost: string;
 try {
   supabaseHost = new URL(supabaseUrl).hostname;
@@ -71,6 +88,19 @@ try {
   process.exit(1);
 }
 
+// 5. Check against explicit production denylist
+const isDenylisted = BLOCKED_SUPABASE_PATTERNS.some((pattern) =>
+  typeof pattern === "string" ? pattern === supabaseHost : pattern.test(supabaseHost)
+);
+if (isDenylisted) {
+  console.error(
+    `❌ Supabase host '${supabaseHost}' matches the production denylist.\n` +
+      "   Seeding against production is strictly prohibited."
+  );
+  process.exit(1);
+}
+
+// 6. Validate Supabase URL against the allowlist
 if (ALLOWED_SUPABASE_HOSTS.length === 0) {
   console.error(
     "❌ The Supabase host allowlist is empty.\n" +
@@ -96,47 +126,54 @@ console.log(`✅ Supabase host '${supabaseHost}' is in the allowlist.`);
 
 // ─── Seed Logic ───────────────────────────────────────────────────────────────
 
-const { CATEGORIES, RECIPES } = await import("../data/mockData");
+async function main() {
+  const { CATEGORIES, RECIPES } = await import("../data/mockData");
+  const supabase = createClient(supabaseUrl!, supabaseKey!);
 
-const supabase = createClient(supabaseUrl, supabaseKey);
+  console.log("🌱 Starting seed...");
 
-console.log("🌱 Starting seed...");
+  // 1. Categories
+  console.log("  → Inserting categories...");
+  const { error: catError } = await supabase.from("categories").upsert(
+    CATEGORIES.map((cat: Record<string, unknown>) => ({
+      id: cat.id,
+      name: cat.name,
+      icon: cat.icon,
+      is_active: cat.isActive || false,
+    }))
+  );
+  if (catError) {
+    console.error("❌ Category insert failed:", catError.message);
+    process.exit(1);
+  }
 
-// 1. Categories
-console.log("  → Inserting categories...");
-const { error: catError } = await supabase.from("categories").upsert(
-  CATEGORIES.map((cat: Record<string, unknown>) => ({
-    id: cat.id,
-    name: cat.name,
-    icon: cat.icon,
-    is_active: cat.isActive || false,
-  }))
-);
-if (catError) {
-  console.error("❌ Category insert failed:", catError.message);
-  process.exit(1);
+  // 2. Recipes
+  console.log("  → Inserting recipes...");
+  const { error: recError } = await supabase.from("recipes").upsert(
+    RECIPES.map((rec: Record<string, unknown>) => ({
+      id: rec.id,
+      title: rec.title,
+      image: rec.image,
+      tags: rec.tags,
+      type: rec.type,
+      time: rec.time || null,
+      rating: rec.rating || null,
+      is_weekly_favorite: rec.isWeeklyFavorite || false,
+      servings: rec.servings || null,
+      calories: rec.calories || null,
+      description: rec.description || null,
+    }))
+  );
+  if (recError) {
+    console.error("❌ Recipe insert failed:", recError.message);
+    process.exit(1);
+  }
+
+  console.log("✅ Seed completed successfully.");
 }
 
-// 2. Recipes
-console.log("  → Inserting recipes...");
-const { error: recError } = await supabase.from("recipes").upsert(
-  RECIPES.map((rec: Record<string, unknown>) => ({
-    id: rec.id,
-    title: rec.title,
-    image: rec.image,
-    tags: rec.tags,
-    type: rec.type,
-    time: rec.time || null,
-    rating: rec.rating || null,
-    is_weekly_favorite: rec.isWeeklyFavorite || false,
-    servings: rec.servings || null,
-    calories: rec.calories || null,
-    description: rec.description || null,
-  }))
-);
-if (recError) {
-  console.error("❌ Recipe insert failed:", recError.message);
+main().catch((err: unknown) => {
+  console.error("❌ Seed script failed:", err);
   process.exit(1);
-}
+});
 
-console.log("✅ Seed completed successfully.");
