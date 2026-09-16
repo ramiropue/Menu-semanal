@@ -3,13 +3,31 @@ import { GoogleGenAI } from '@google/genai';
 import * as cheerio from 'cheerio';
 import { validateUrl, safeFetch } from '@/lib/security/ssrfValidator';
 
-// ─── Kill Switch ──────────────────────────────────────────────────────────────
-// Set SCRAPE_ENABLED=false in production to disable this endpoint entirely.
-// When unset or set to any other value, the endpoint is enabled by default.
-const SCRAPE_ENABLED = process.env.SCRAPE_ENABLED !== 'false';
+// ─── Kill Switch (fail-closed) ────────────────────────────────────────────────
+// Only SCRAPE_ENABLED=true enables this endpoint.
+// When absent, 'false', or any other value, the endpoint returns 503.
+const SCRAPE_ENABLED = process.env.SCRAPE_ENABLED === 'true';
+
+// ─── Constants ────────────────────────────────────────────────────────────────
+const HEAD_TIMEOUT_MS = 5_000;
+const OEMBED_TIMEOUT_MS = 5_000;
+const OEMBED_MAX_BYTES = 256 * 1024; // 256 KB for oEmbed JSON
+
+/**
+ * Sanitize a URL for safe logging: strips query strings and credentials.
+ * Only logs scheme + hostname + pathname.
+ */
+function sanitizeUrlForLog(urlString: string): string {
+  try {
+    const u = new URL(urlString);
+    return `${u.protocol}//${u.hostname}${u.pathname}`;
+  } catch {
+    return '[malformed-url]';
+  }
+}
 
 export async function POST(request: Request) {
-  // Kill switch: return 503 when disabled in production
+  // Kill switch: return 503 when disabled
   if (!SCRAPE_ENABLED) {
     return NextResponse.json(
       { error: 'El servicio de scraping está temporalmente deshabilitado.' },
@@ -27,7 +45,7 @@ export async function POST(request: Request) {
     // ─── SSRF Validation ────────────────────────────────────────────────
     const urlValidation = validateUrl(url);
     if (!urlValidation.valid) {
-      console.warn(`[Scraper] SSRF blocked: ${urlValidation.reason} — URL: ${url}`);
+      console.warn(`[Scraper] SSRF blocked: ${urlValidation.reason} — host: ${sanitizeUrlForLog(url)}`);
       return NextResponse.json(
         { error: 'La URL proporcionada no es válida o apunta a un destino no permitido.' },
         { status: 400 }
@@ -40,30 +58,40 @@ export async function POST(request: Request) {
 
     const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
-    // Resolver URL acortada (vm.tiktok.com, bit.ly, etc.)
-    // Using safeFetch with manual redirect to validate each hop
+    // ─── Resolve shortened URLs (vm.tiktok.com, bit.ly, etc.) ───────────
+    // HEAD with timeout and post-redirect SSRF validation
     let resolvedUrl = url;
     try {
-      const headRes = await fetch(url, { method: 'HEAD', redirect: 'follow' });
-      const finalUrl = headRes.url || url;
+      const headController = new AbortController();
+      const headTimer = setTimeout(() => headController.abort(), HEAD_TIMEOUT_MS);
+      try {
+        const headRes = await fetch(url, {
+          method: 'HEAD',
+          redirect: 'follow',
+          signal: headController.signal,
+        });
+        const finalUrl = headRes.url || url;
 
-      // Validate the resolved URL too (in case the redirect leads to a private IP)
-      const resolvedValidation = validateUrl(finalUrl);
-      if (!resolvedValidation.valid) {
-        console.warn(`[Scraper] SSRF blocked after redirect: ${resolvedValidation.reason} — Final URL: ${finalUrl}`);
-        return NextResponse.json(
-          { error: 'La URL redirige a un destino no permitido.' },
-          { status: 400 }
-        );
+        // Validate the resolved URL (in case the redirect leads to a private IP)
+        const resolvedValidation = validateUrl(finalUrl);
+        if (!resolvedValidation.valid) {
+          console.warn(`[Scraper] SSRF blocked after redirect: ${resolvedValidation.reason}`);
+          return NextResponse.json(
+            { error: 'La URL redirige a un destino no permitido.' },
+            { status: 400 }
+          );
+        }
+
+        resolvedUrl = finalUrl;
+        console.log(`[Scraper] URL resuelta: ${sanitizeUrlForLog(resolvedUrl)}`);
+      } finally {
+        clearTimeout(headTimer);
       }
-
-      resolvedUrl = finalUrl;
-      console.log(`[Scraper] URL resuelta: ${resolvedUrl}`);
     } catch {
       console.log(`[Scraper] No se pudo resolver la URL, usando la original`);
     }
 
-    // 1. Obtener datos con APIs específicas (ej: TikTok oEmbed)
+    // ─── 1. Platform-specific APIs (e.g., TikTok oEmbed) ────────────────
     let optimizedPayload = '';
     let fetchFailed = false;
     let extractedImageUrl = '';
@@ -72,30 +100,79 @@ export async function POST(request: Request) {
       console.log(`[Scraper] Detectada URL de TikTok. Intentando oEmbed API...`);
       try {
         const oembedUrl = `https://www.tiktok.com/oembed?url=${encodeURIComponent(resolvedUrl)}`;
-        // Validate the oEmbed URL too
+        // Validate the oEmbed URL
         const oembedValidation = validateUrl(oembedUrl);
         if (oembedValidation.valid) {
-          const oembedRes = await fetch(oembedUrl);
-          if (oembedRes.ok) {
-            const oembedData = await oembedRes.json();
-            if (oembedData.title) {
-              optimizedPayload = `Título y Descripción del Vídeo de TikTok:\n${oembedData.title}\n\n`;
-              console.log(`[Scraper] TikTok oEmbed extraído con éxito.`);
-              if (oembedData.thumbnail_url) {
-                extractedImageUrl = oembedData.thumbnail_url;
+          // Use AbortController for timeout + manual redirect + byte limit
+          const oembedController = new AbortController();
+          const oembedTimer = setTimeout(() => oembedController.abort(), OEMBED_TIMEOUT_MS);
+          try {
+            const oembedRes = await fetch(oembedUrl, {
+              redirect: 'manual', // Don't follow redirects blindly
+              signal: oembedController.signal,
+              headers: { 'Accept': 'application/json' },
+            });
+
+            // Reject redirects from oEmbed (unexpected behavior)
+            if (oembedRes.status >= 300 && oembedRes.status < 400) {
+              console.warn(`[Scraper] oEmbed returned unexpected redirect, skipping`);
+            } else if (oembedRes.ok) {
+              // Read with byte limit
+              const reader = oembedRes.body?.getReader();
+              if (reader) {
+                const chunks: Uint8Array[] = [];
+                let totalBytes = 0;
+                try {
+                  while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+                    totalBytes += value.byteLength;
+                    if (totalBytes > OEMBED_MAX_BYTES) {
+                      reader.cancel();
+                      console.warn(`[Scraper] oEmbed response exceeds ${OEMBED_MAX_BYTES} bytes, skipping`);
+                      break;
+                    }
+                    chunks.push(value);
+                  }
+                } finally {
+                  reader.releaseLock();
+                }
+
+                if (totalBytes <= OEMBED_MAX_BYTES) {
+                  const decoder = new TextDecoder('utf-8', { fatal: false });
+                  const merged = chunks.reduce((acc, chunk) => {
+                    const m = new Uint8Array(acc.length + chunk.length);
+                    m.set(acc);
+                    m.set(chunk, acc.length);
+                    return m;
+                  }, new Uint8Array(0));
+                  const oembedData = JSON.parse(decoder.decode(merged));
+
+                  if (oembedData.title) {
+                    optimizedPayload = `Título y Descripción del Vídeo de TikTok:\n${oembedData.title}\n\n`;
+                    console.log(`[Scraper] TikTok oEmbed extraído con éxito.`);
+                    if (oembedData.thumbnail_url) {
+                      extractedImageUrl = oembedData.thumbnail_url;
+                    }
+                  }
+                }
               }
             }
+          } finally {
+            clearTimeout(oembedTimer);
           }
         }
-      } catch (e) {
-        console.log(`[Scraper] TikTok oEmbed falló:`, e);
+      } catch {
+        console.log(`[Scraper] TikTok oEmbed falló`);
       }
     }
 
-    // 2. Intentar descargar el HTML de la URL si no tenemos datos suficientes
+    // ─── 2. Download HTML via safeFetch (SSRF-protected) ────────────────
     if (!optimizedPayload || optimizedPayload.length < 50) {
       try {
-        // Use safeFetch for SSRF-protected HTML download
+        // safeFetch validates each redirect hop, enforces timeout covering
+        // connection + body read, streams with per-chunk byte counting,
+        // and cancels the response when the limit is exceeded.
         const { body: html } = await safeFetch(resolvedUrl, {
           maxRedirects: 5,
           timeoutMs: 10_000,
@@ -138,7 +215,7 @@ ${universalData.substring(0, 20000)}
 ${nextData.substring(0, 10000)}
 `;
         }
-      } catch (fetchError) {
+      } catch (fetchError: unknown) {
         const errorMsg = fetchError instanceof Error ? fetchError.message : String(fetchError);
         if (errorMsg.startsWith('SSRF blocked')) {
           console.warn(`[Scraper] ${errorMsg}`);
@@ -147,18 +224,15 @@ ${nextData.substring(0, 10000)}
             { status: 400 }
           );
         }
-        console.log(`[Scraper] Fetch error: ${errorMsg}`);
+        console.log(`[Scraper] Fetch error (details omitted for security)`);
         fetchFailed = true;
       }
     }
 
-
-
-    // 2. Construir prompt según si tenemos HTML o no
+    // ─── 3. Build Gemini prompt ─────────────────────────────────────────
     let prompt: string;
 
     if (fetchFailed || !optimizedPayload) {
-      // Modo "URL directa": pedimos a Gemini que use su conocimiento
       prompt = `
 Eres un chef profesional. El usuario quiere guardar la receta de este enlace: ${resolvedUrl}
 
@@ -224,7 +298,6 @@ ${optimizedPayload}
     let chatResponse;
 
     if (fetchFailed || !optimizedPayload) {
-      // Modo con Google Search: Gemini busca la receta en internet
       chatResponse = await ai.models.generateContent({
         model: 'gemini-2.5-flash',
         contents: prompt,
@@ -233,7 +306,6 @@ ${optimizedPayload}
         }
       });
     } else {
-      // Modo HTML: tenemos contenido, no necesita buscar
       chatResponse = await ai.models.generateContent({
         model: 'gemini-2.5-flash',
         contents: prompt,
@@ -249,7 +321,6 @@ ${optimizedPayload}
     }
 
     console.log(`[Scraper] Respuesta de Gemini recibida (${text.length} chars)`);
-    console.log(`[Scraper] Respuesta: ${text.substring(0, 500)}`);
 
     // Limpiar respuesta: quitar backticks de markdown si los hay
     let cleanJson = text.trim();
@@ -272,16 +343,16 @@ ${optimizedPayload}
     
     return NextResponse.json(parsedData);
 
-  } catch (error: any) {
-    console.error("Scraping error:", error);
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
+    console.error("[Scraper] Error (details omitted for security)");
 
-    const errorMessage = error.message || '';
     if (errorMessage.includes('429') || errorMessage.includes('RESOURCE_EXHAUSTED')) {
       return NextResponse.json({
         error: 'Has superado el límite de lecturas por minuto gratuito de Gemini. Espera 1 minuto e inténtalo de nuevo.'
       }, { status: 429 });
     }
 
-    return NextResponse.json({ error: errorMessage || 'Error desconocido al analizar la receta' }, { status: 500 });
+    return NextResponse.json({ error: 'Error al analizar la receta' }, { status: 500 });
   }
 }

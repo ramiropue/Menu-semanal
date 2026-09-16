@@ -1,4 +1,3 @@
-#!/usr/bin/env npx tsx
 /**
  * scripts/seed.ts — Administrative seed script.
  *
@@ -7,17 +6,31 @@
  *
  * Requirements:
  *   1. SEED_CONFIRM=yes must be set explicitly.
- *   2. NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY must be set.
- *   3. Must not be invoked during build, deploy, or CI.
+ *   2. NEXT_PUBLIC_SUPABASE_URL must match a project in the allowlist.
+ *   3. NEXT_PUBLIC_SUPABASE_ANON_KEY must be set.
+ *   4. Must not be invoked during build, deploy, or CI.
+ *   5. tsx must be installed as a devDependency (not downloaded via npx).
  *
  * Usage:
  *   SEED_CONFIRM=yes npx tsx scripts/seed.ts
+ *
+ * The allowlist below contains ONLY development/staging project hostnames.
+ * The production project must NEVER be added to this list.
  */
 
 import { createClient } from "@supabase/supabase-js";
 
+// ─── Allowlist: ONLY dev/staging Supabase project hosts ───────────────────────
+// Format: "<project-ref>.supabase.co"
+// DO NOT ADD THE PRODUCTION PROJECT HERE.
+const ALLOWED_SUPABASE_HOSTS: string[] = [
+  // Example: "abc123dev.supabase.co"
+  // Add your dev/staging project ref here before first use.
+];
+
 // ─── Safety Checks ───────────────────────────────────────────────────────────
 
+// 1. Explicit confirmation
 const SEED_CONFIRM = process.env.SEED_CONFIRM;
 if (SEED_CONFIRM !== "yes") {
   console.error(
@@ -27,6 +40,7 @@ if (SEED_CONFIRM !== "yes") {
   process.exit(1);
 }
 
+// 2. Environment variables must be present
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
@@ -38,17 +52,50 @@ if (!supabaseUrl || !supabaseKey) {
   process.exit(1);
 }
 
+// 3. Block production environment
 if (process.env.NODE_ENV === "production") {
   console.error(
-    "❌ This script must not be run in production.\n" +
-      "   Set NODE_ENV to development or staging."
+    "❌ This script must not be run with NODE_ENV=production."
   );
   process.exit(1);
 }
 
+// 4. Validate Supabase URL against the allowlist
+let supabaseHost: string;
+try {
+  supabaseHost = new URL(supabaseUrl).hostname;
+} catch {
+  console.error(
+    `❌ NEXT_PUBLIC_SUPABASE_URL is not a valid URL: ${supabaseUrl}`
+  );
+  process.exit(1);
+}
+
+if (ALLOWED_SUPABASE_HOSTS.length === 0) {
+  console.error(
+    "❌ The Supabase host allowlist is empty.\n" +
+      "   Edit scripts/seed.ts and add your dev/staging project hostname\n" +
+      "   to ALLOWED_SUPABASE_HOSTS before running.\n" +
+      "   Example: 'abc123dev.supabase.co'\n" +
+      "   DO NOT add the production project."
+  );
+  process.exit(1);
+}
+
+if (!ALLOWED_SUPABASE_HOSTS.includes(supabaseHost)) {
+  console.error(
+    `❌ Supabase host '${supabaseHost}' is not in the allowlist.\n` +
+      `   Allowed hosts: ${ALLOWED_SUPABASE_HOSTS.join(", ")}\n` +
+      "   If this is a dev/staging project, add it to ALLOWED_SUPABASE_HOSTS in scripts/seed.ts.\n" +
+      "   DO NOT add the production project."
+  );
+  process.exit(1);
+}
+
+console.log(`✅ Supabase host '${supabaseHost}' is in the allowlist.`);
+
 // ─── Seed Logic ───────────────────────────────────────────────────────────────
 
-// Dynamic import so the script can resolve the data module from the project
 const { CATEGORIES, RECIPES } = await import("../data/mockData");
 
 const supabase = createClient(supabaseUrl, supabaseKey);
@@ -58,7 +105,7 @@ console.log("🌱 Starting seed...");
 // 1. Categories
 console.log("  → Inserting categories...");
 const { error: catError } = await supabase.from("categories").upsert(
-  CATEGORIES.map((cat: any) => ({
+  CATEGORIES.map((cat: Record<string, unknown>) => ({
     id: cat.id,
     name: cat.name,
     icon: cat.icon,
@@ -73,7 +120,7 @@ if (catError) {
 // 2. Recipes
 console.log("  → Inserting recipes...");
 const { error: recError } = await supabase.from("recipes").upsert(
-  RECIPES.map((rec: any) => ({
+  RECIPES.map((rec: Record<string, unknown>) => ({
     id: rec.id,
     title: rec.title,
     image: rec.image,

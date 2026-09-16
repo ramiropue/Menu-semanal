@@ -294,6 +294,41 @@ export interface SafeFetchOptions {
  * Fetch a URL with SSRF protections applied at each redirect hop.
  * Returns the response body as a string, truncated to maxBytes.
  *
+ * ## Security Properties
+ * - Each redirect hop is validated against the SSRF rules before following.
+ * - A single AbortController timeout covers connection + full body read.
+ * - Body is streamed with per-chunk byte counting; response is cancelled
+ *   immediately when the limit is exceeded (not buffered then checked).
+ * - Content-Type is validated before reading the body.
+ *
+ * ## DNS Rebinding Limitation (KNOWN)
+ *
+ * There is a TOCTOU (Time-Of-Check-Time-Of-Use) gap between URL validation
+ * and the actual TCP connection. `safeFetch()` validates the URL string
+ * (hostname, protocol, IP ranges) but then delegates to the runtime `fetch()`
+ * which performs its own DNS resolution. A malicious DNS server could return
+ * a public IP during validation and a private IP (e.g., 169.254.169.254)
+ * during the actual connection — this is a DNS rebinding attack.
+ *
+ * **Why we can't fully fix this in user-space:**
+ * - Node.js `fetch()` (undici) does not expose a hook to inspect the
+ *   resolved IP before connecting.
+ * - Performing `dns.lookup()` separately and then connecting to the
+ *   resolved IP doesn't help because (a) the second DNS resolution by
+ *   `fetch()` could return a different IP, and (b) setting the `Host`
+ *   header manually may break TLS certificate validation.
+ * - The `validateResolvedIp()` function is exported for future use if
+ *   a custom HTTP agent with IP pinning becomes available.
+ *
+ * **Mitigation strategy:**
+ * 1. Keep `/api/scrape` disabled in production (`SCRAPE_ENABLED !== 'true'`).
+ * 2. When enabled, the endpoint is only reachable through Netlify which
+ *    runs in an isolated serverless environment (no access to cloud
+ *    metadata services from Netlify Functions).
+ * 3. All private IP ranges are blocked at the URL string level, which
+ *    prevents the most common SSRF vectors (direct IP, localhost, etc.).
+ * 4. Rate limiting and monitoring should be added before enabling in prod.
+ *
  * Throws on any validation failure, timeout, or excessive size.
  */
 export async function safeFetch(
