@@ -89,6 +89,9 @@ describe('Stage 4A Additive Migration Verification', () => {
       GRANT ALL ON TABLE public.categories TO anon, authenticated;
       GRANT USAGE ON SCHEMA public TO anon, authenticated;
 
+      -- Simulate Supabase default table privileges (new tables in public get ALL for anon & authenticated)
+      ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO anon, authenticated;
+
       -- Initial V1 Production Data:
       -- EXACT PRODUCTION STATE: Contains planner, freezer, and shopping_list, but NO _FAVORITES_STATE_
       INSERT INTO public.recipes (id, title) VALUES
@@ -303,5 +306,43 @@ describe('Stage 4A Additive Migration Verification', () => {
     await db.query(`INSERT INTO public.categories (id, name) VALUES ('cat-v1-anon', 'Postres');`);
     const catInsertCheck = await db.query(`SELECT id FROM public.categories WHERE id = 'cat-v1-anon';`);
     expect(catInsertCheck.rows.length).toBe(1);
+  });
+
+  // Test 6: Exact least-privilege grants verification
+  it('6. authenticated termina exactamente con privilegios mínimos (app_members: SELECT; shared_state: SELECT, INSERT, UPDATE) y anon/PUBLIC sin privilegios', async () => {
+    const privsRes = await db.query<{ grantee: string; table_name: string; privilege_type: string }>(`
+      SELECT grantee, table_name, privilege_type
+      FROM information_schema.table_privileges
+      WHERE table_schema = 'public' AND table_name IN ('app_members', 'shared_state')
+      ORDER BY table_name, grantee, privilege_type;
+    `);
+
+    // 1. Check app_members privileges
+    const appMembersPrivs = privsRes.rows.filter((r) => r.table_name === 'app_members');
+    const authAppMembersPrivs = appMembersPrivs
+      .filter((r) => r.grantee === 'authenticated')
+      .map((r) => r.privilege_type)
+      .sort();
+    expect(authAppMembersPrivs).toEqual(['SELECT']);
+
+    const anonAppMembersPrivs = appMembersPrivs.filter((r) => r.grantee === 'anon' || r.grantee === 'PUBLIC');
+    expect(anonAppMembersPrivs.length).toBe(0);
+
+    // 2. Check shared_state privileges
+    const sharedStatePrivs = privsRes.rows.filter((r) => r.table_name === 'shared_state');
+    const authSharedStatePrivs = sharedStatePrivs
+      .filter((r) => r.grantee === 'authenticated')
+      .map((r) => r.privilege_type)
+      .sort();
+    expect(authSharedStatePrivs).toEqual(['INSERT', 'SELECT', 'UPDATE']);
+
+    // Explicit verification: NO DELETE, TRUNCATE, TRIGGER, or REFERENCES
+    expect(authSharedStatePrivs).not.toContain('DELETE');
+    expect(authSharedStatePrivs).not.toContain('TRUNCATE');
+    expect(authSharedStatePrivs).not.toContain('TRIGGER');
+    expect(authSharedStatePrivs).not.toContain('REFERENCES');
+
+    const anonSharedStatePrivs = sharedStatePrivs.filter((r) => r.grantee === 'anon' || r.grantee === 'PUBLIC');
+    expect(anonSharedStatePrivs.length).toBe(0);
   });
 });

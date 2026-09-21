@@ -109,19 +109,22 @@ DROP POLICY IF EXISTS "Public Read" ON storage.objects;
 DROP POLICY IF EXISTS "Public Update" ON storage.objects;
 DROP POLICY IF EXISTS "Public Delete" ON storage.objects;
 
--- Revocar acceso completo al rol anónimo
+-- Revocar acceso completo al rol anónimo en tablas V1
 REVOKE ALL ON TABLE public.recipes FROM anon;
 REVOKE ALL ON TABLE public.categories FROM anon;
-REVOKE ALL ON TABLE public.app_members FROM anon;
-REVOKE ALL ON TABLE public.shared_state FROM anon;
 
--- Prohibir mutaciones directas de app_members a clientes autenticados (solo admin/service_role)
-REVOKE INSERT, UPDATE, DELETE ON TABLE public.app_members FROM authenticated;
+-- Revocaciones explícitas estrictas sobre las tablas nuevas
+REVOKE ALL PRIVILEGES ON TABLE public.app_members
+FROM anon, authenticated, PUBLIC;
+
+REVOKE ALL PRIVILEGES ON TABLE public.shared_state
+FROM anon, authenticated, PUBLIC;
 
 -- Otorgar permisos base al rol authenticated
 GRANT USAGE ON SCHEMA public TO anon, authenticated;
 GRANT SELECT ON TABLE public.app_members TO authenticated;
-GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.recipes, public.categories, public.shared_state TO authenticated;
+GRANT SELECT, INSERT, UPDATE ON TABLE public.shared_state TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.recipes, public.categories TO authenticated;
 
 -- 7. Habilitación de Row Level Security (RLS)
 ALTER TABLE public.app_members ENABLE ROW LEVEL SECURITY;

@@ -55,15 +55,15 @@ CREATE TABLE IF NOT EXISTS public.shared_state (
 );
 
 -- 4. Revocaciones Explícitas Previas sobre las Tablas Nuevas
-REVOKE ALL ON TABLE public.app_members FROM anon, PUBLIC;
-REVOKE ALL ON TABLE public.shared_state FROM anon, PUBLIC;
+REVOKE ALL PRIVILEGES ON TABLE public.app_members
+FROM anon, authenticated, PUBLIC;
+
+REVOKE ALL PRIVILEGES ON TABLE public.shared_state
+FROM anon, authenticated, PUBLIC;
 
 -- Conceder únicamente permisos mínimos necesarios a authenticated
 GRANT SELECT ON TABLE public.app_members TO authenticated;
-REVOKE INSERT, UPDATE, DELETE ON TABLE public.app_members FROM authenticated;
--- NOTA: NO se concede DELETE sobre shared_state (las 4 filas son estados fijos)
 GRANT SELECT, INSERT, UPDATE ON TABLE public.shared_state TO authenticated;
-REVOKE DELETE ON TABLE public.shared_state FROM authenticated, anon, PUBLIC;
 
 -- 5. Habilitación de RLS exclusivamente en las nuevas tablas
 ALTER TABLE public.app_members ENABLE ROW LEVEL SECURITY;
