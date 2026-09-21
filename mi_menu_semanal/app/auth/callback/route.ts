@@ -17,6 +17,8 @@ export async function GET(request: NextRequest) {
       if (process.env.AUTH_GUARD_ENABLED === 'true') {
         const { data: isMember, error: memberError } = await supabase.rpc('is_app_member');
         if (memberError || !isMember) {
+          // Hardening: Cerrar sesión inmediatamente para revocar tokens de un usuario no autorizado
+          await supabase.auth.signOut();
           return NextResponse.redirect(new URL('/login?error=unauthorized', requestUrl.origin));
         }
       }

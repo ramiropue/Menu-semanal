@@ -1,24 +1,39 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { getSafeRedirectUrl } from '@/lib/auth/url';
 import { requireAuth, isAuthGuardEnabled } from '@/lib/auth/guard';
+import { sendMagicLink } from '@/lib/auth/magicLink';
 import { GET as callbackHandler } from '@/app/auth/callback/route';
 import { POST as signoutHandler } from '@/app/auth/signout/route';
+import { proxy } from '@/proxy';
 import { NextRequest } from 'next/server';
 
-// Mock Supabase Server Client
-const mockGetUser = vi.fn();
-const mockRpc = vi.fn();
-const mockExchangeCodeForSession = vi.fn();
-const mockSignOut = vi.fn();
+// Hoisted mocks for Supabase SSR client
+const { mockGetUser, mockRpc, mockExchangeCodeForSession, mockSignOut, mockSignInWithOtp } =
+  vi.hoisted(() => ({
+    mockGetUser: vi.fn(),
+    mockRpc: vi.fn(),
+    mockExchangeCodeForSession: vi.fn(),
+    mockSignOut: vi.fn(),
+    mockSignInWithOtp: vi.fn(),
+  }));
 
-vi.mock('@/lib/supabase/server', () => ({
-  createClient: vi.fn(async () => ({
+vi.mock('@supabase/ssr', () => ({
+  createServerClient: vi.fn(() => ({
     auth: {
       getUser: mockGetUser,
       exchangeCodeForSession: mockExchangeCodeForSession,
       signOut: mockSignOut,
+      signInWithOtp: mockSignInWithOtp,
     },
     rpc: mockRpc,
+  })),
+}));
+
+// Mock Next.js cookies
+vi.mock('next/headers', () => ({
+  cookies: vi.fn(async () => ({
+    getAll: vi.fn(() => []),
+    set: vi.fn(),
   })),
 }));
 
@@ -33,12 +48,14 @@ vi.mock('next/navigation', () => ({
   redirect: (url: string) => mockRedirect(url),
 }));
 
-describe('Private Authentication Flow (Etapa 5A)', () => {
+describe('Private Authentication Flow (Etapa 5A Hardening)', () => {
   const originalEnv = { ...process.env };
 
   beforeEach(() => {
     vi.clearAllMocks();
     process.env = { ...originalEnv };
+    process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://mockproject.supabase.co';
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = 'mock-anon-key';
   });
 
   afterEach(() => {
@@ -82,7 +99,46 @@ describe('Private Authentication Flow (Etapa 5A)', () => {
   });
 
   // ============================================================
-  // 2. PKCE CALLBACK ROUTE (/auth/callback)
+  // 2. MAGIC LINK SENDER (sendMagicLink)
+  // ============================================================
+  describe('Magic Link Sender (sendMagicLink)', () => {
+    it('spies on real signInWithOtp and verifies shouldCreateUser: false and emailRedirectTo pointing to /auth/callback', async () => {
+      const mockAuthClient = {
+        signInWithOtp: mockSignInWithOtp.mockResolvedValueOnce({
+          data: {},
+          error: null,
+        }),
+      };
+
+      const result = await sendMagicLink(
+        { auth: mockAuthClient as unknown as import('@supabase/supabase-js').SupabaseClient['auth'] },
+        {
+          email: '  Usuario_Autorizado@Example.com  ',
+          next: '/recetas/nueva',
+          origin: 'https://mi-menu.example.com',
+        }
+      );
+
+      expect(result.success).toBe(true);
+      expect(mockSignInWithOtp).toHaveBeenCalledTimes(1);
+
+      const calledArgs = mockSignInWithOtp.mock.calls[0][0];
+
+      // 1. Verificación de normalización de correo
+      expect(calledArgs.email).toBe('usuario_autorizado@example.com');
+
+      // 2. Verificación OBLIGATORIA: shouldCreateUser === false
+      expect(calledArgs.options.shouldCreateUser).toBe(false);
+
+      // 3. Verificación OBLIGATORIA: emailRedirectTo apunta a /auth/callback
+      expect(calledArgs.options.emailRedirectTo).toBe(
+        'https://mi-menu.example.com/auth/callback?next=%2Frecetas%2Fnueva'
+      );
+    });
+  });
+
+  // ============================================================
+  // 3. PKCE CALLBACK ROUTE (/auth/callback)
   // ============================================================
   describe('PKCE Auth Callback (/auth/callback)', () => {
     it('redirects to /login?error=callback_error when code is missing', async () => {
@@ -135,7 +191,7 @@ describe('Private Authentication Flow (Etapa 5A)', () => {
       expect(res.headers.get('location')).toBe('http://localhost:3000/');
     });
 
-    it('blocks authenticated non-member in callback when guard is enabled', async () => {
+    it('blocks authenticated non-member in callback, calls signOut() and redirects to /login?error=unauthorized', async () => {
       process.env.AUTH_GUARD_ENABLED = 'true';
 
       mockExchangeCodeForSession.mockResolvedValueOnce({
@@ -143,17 +199,42 @@ describe('Private Authentication Flow (Etapa 5A)', () => {
         error: null,
       });
       mockRpc.mockResolvedValueOnce({ data: false, error: null }); // is_app_member -> false
+      mockSignOut.mockResolvedValueOnce({ error: null });
 
       const req = new NextRequest('http://localhost:3000/auth/callback?code=good_code');
       const res = await callbackHandler(req);
 
+      // Verificación EXPRESA: debe invocar signOut() antes de redirigir
+      expect(mockSignOut).toHaveBeenCalledTimes(1);
       expect(res.status).toBe(307);
       expect(res.headers.get('location')).toBe('http://localhost:3000/login?error=unauthorized');
     });
   });
 
   // ============================================================
-  // 3. SERVER GUARD (requireAuth)
+  // 4. SIGN OUT (/auth/signout)
+  // ============================================================
+  describe('Sign Out Route (/auth/signout)', () => {
+    it('calls signOut and redirects to /login on POST', async () => {
+      mockSignOut.mockResolvedValueOnce({ error: null });
+
+      const req = new NextRequest('http://localhost:3000/auth/signout', { method: 'POST' });
+      const res = await signoutHandler(req);
+
+      expect(mockSignOut).toHaveBeenCalled();
+      expect(res.status).toBe(302);
+      expect(res.headers.get('location')).toBe('http://localhost:3000/login');
+    });
+
+    it('confirms that GET handler does NOT exist in /auth/signout (POST-only)', async () => {
+      const signoutModule = await import('@/app/auth/signout/route');
+      expect((signoutModule as { GET?: unknown }).GET).toBeUndefined();
+      expect(typeof (signoutModule as { POST?: unknown }).POST).toBe('function');
+    });
+  });
+
+  // ============================================================
+  // 5. SERVER GUARD (requireAuth)
   // ============================================================
   describe('Server Guard (requireAuth)', () => {
     it('bypasses guard completely when AUTH_GUARD_ENABLED is not true (V1 mode)', async () => {
@@ -219,37 +300,72 @@ describe('Private Authentication Flow (Etapa 5A)', () => {
   });
 
   // ============================================================
-  // 4. SIGN OUT (/auth/signout)
+  // 6. PROXY TESTS (proxy.ts / Next.js 16)
   // ============================================================
-  describe('Sign Out Route (/auth/signout)', () => {
-    it('calls signOut and redirects to /login', async () => {
-      mockSignOut.mockResolvedValueOnce({ error: null });
+  describe('Proxy Middleware (proxy.ts)', () => {
+    it('bypasses guard completely when AUTH_GUARD_ENABLED is not true (V1 mode intact)', async () => {
+      delete process.env.AUTH_GUARD_ENABLED;
+      mockGetUser.mockResolvedValueOnce({ data: { user: null }, error: null });
 
-      const req = new NextRequest('http://localhost:3000/auth/signout', { method: 'POST' });
-      const res = await signoutHandler(req);
+      const req = new NextRequest('http://localhost:3000/planear');
+      const res = await proxy(req);
 
-      expect(mockSignOut).toHaveBeenCalled();
-      expect(res.status).toBe(302);
-      expect(res.headers.get('location')).toBe('http://localhost:3000/login');
+      expect(res.status).toBe(200);
+      expect(res.headers.get('location')).toBeNull();
     });
-  });
 
-  // ============================================================
-  // 5. MAGIC LINK PARAMETERS (shouldCreateUser: false)
-  // ============================================================
-  describe('Magic Link Configuration (shouldCreateUser: false)', () => {
-    it('verifies that login client options strictly set shouldCreateUser to false', () => {
-      // Direct contract test of the options object used in signInWithOtp
-      const loginPayload = {
-        email: 'test@example.com',
-        options: {
-          emailRedirectTo: 'http://localhost:3000/auth/callback?next=%2F',
-          shouldCreateUser: false,
-        },
-      };
+    it('always allows public routes /login, /auth/callback, /auth/signout without redirecting', async () => {
+      process.env.AUTH_GUARD_ENABLED = 'true';
+      mockGetUser.mockResolvedValue({ data: { user: null }, error: null });
 
-      expect(loginPayload.options.shouldCreateUser).toBe(false);
-      expect(loginPayload.email).toBe('test@example.com');
+      for (const route of ['/login', '/auth/callback', '/auth/signout']) {
+        const req = new NextRequest(`http://localhost:3000${route}`);
+        const res = await proxy(req);
+
+        expect(res.status).toBe(200);
+        expect(res.headers.get('location')).toBeNull();
+      }
+    });
+
+    it('redirects unauthenticated user accessing protected route to /login?next=...', async () => {
+      process.env.AUTH_GUARD_ENABLED = 'true';
+      mockGetUser.mockResolvedValueOnce({ data: { user: null }, error: null });
+
+      const req = new NextRequest('http://localhost:3000/recetas');
+      const res = await proxy(req);
+
+      expect(res.status).toBe(307);
+      expect(res.headers.get('location')).toBe('http://localhost:3000/login?next=%2Frecetas');
+    });
+
+    it('redirects authenticated non-member to /login?error=unauthorized', async () => {
+      process.env.AUTH_GUARD_ENABLED = 'true';
+      mockGetUser.mockResolvedValueOnce({
+        data: { user: { id: 'unauthorized-user' } },
+        error: null,
+      });
+      mockRpc.mockResolvedValueOnce({ data: false, error: null }); // is_app_member -> false
+
+      const req = new NextRequest('http://localhost:3000/compra');
+      const res = await proxy(req);
+
+      expect(res.status).toBe(307);
+      expect(res.headers.get('location')).toBe('http://localhost:3000/login?error=unauthorized');
+    });
+
+    it('allows authorized member through when guard is enabled', async () => {
+      process.env.AUTH_GUARD_ENABLED = 'true';
+      mockGetUser.mockResolvedValueOnce({
+        data: { user: { id: 'authorized-member-id' } },
+        error: null,
+      });
+      mockRpc.mockResolvedValueOnce({ data: true, error: null }); // is_app_member -> true
+
+      const req = new NextRequest('http://localhost:3000/compra');
+      const res = await proxy(req);
+
+      expect(res.status).toBe(200);
+      expect(res.headers.get('location')).toBeNull();
     });
   });
 });

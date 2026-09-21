@@ -4,6 +4,7 @@ import React, { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { getSafeRedirectUrl } from '@/lib/auth/url';
+import { sendMagicLink } from '@/lib/auth/magicLink';
 
 function getParamErrorMessage(errorParam: string | null): string | null {
   if (errorParam === 'unauthorized') {
@@ -59,15 +60,12 @@ function LoginForm() {
     try {
       const supabase = createClient();
       const origin = typeof window !== 'undefined' ? window.location.origin : '';
-      const emailRedirectTo = `${origin}/auth/callback?next=${encodeURIComponent(safeNext)}`;
 
-      // CRÍTICO: shouldCreateUser: false impide el registro público
-      await supabase.auth.signInWithOtp({
-        email: email.trim().toLowerCase(),
-        options: {
-          emailRedirectTo,
-          shouldCreateUser: false,
-        },
+      // Delegar en la función centralizada que aplica shouldCreateUser: false
+      await sendMagicLink(supabase, {
+        email,
+        next: safeNext,
+        origin,
       });
 
       // MENSAJE GENÉRICO ESTRICTO:
