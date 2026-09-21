@@ -1,260 +1,195 @@
 -- supabase_v2_draft_migration.sql
 -- ==============================================================================
--- BORRADOR DE MIGRACIÓN V2 (FASE 1): AUTENTICACIÓN Y AISLAMIENTO POR HOGAR
+-- BORRADOR DE MIGRACIÓN V2 (FASE 1): APLICACIÓN PRIVADA COMPARTIDA (DOS MIEMBROS)
 -- ==============================================================================
--- Este script es un borrador aditivo e idempotente para REVISIÓN.
--- NO SE HA EJECUTADO EN SUPABASE REMOTO.
+-- Estado: BORRADOR DE DISEÑO PARA REVISIÓN TÉCNICA (NO EJECUTADO EN REMOTO).
+-- ==============================================================================
+-- PRINCIPIOS DE ARQUITECTURA:
+-- 1. Alcance: Aplicación 100% privada para dos personas (pareja) con permisos idénticos.
+-- 2. Eliminación de complejidad innecesaria: Sin households, household_members,
+--    invitaciones, roles admin/member ni catálogos públicos.
+-- 3. Autorización mínima: Tabla app_members y función segura is_app_member().
+-- 4. Estado compartido: Tabla shared_state sustituye las 4 filas especiales de categories.
+-- 5. Privacidad estricta: RLS activo en todo; anon y usuarios no autorizados = 0 permisos.
+-- 6. Storage privado: bucket no público con acceso restringido a app_members.
 -- ==============================================================================
 
 BEGIN;
 
--- 1. Extensiones requeridas
-CREATE EXTENSION IF NOT EXISTS "pgcrypto";
-
--- 2. Tabla de hogares (Households)
-CREATE TABLE IF NOT EXISTS public.households (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    name TEXT NOT NULL,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-
--- 3. Miembros del hogar (Household Members)
-CREATE TABLE IF NOT EXISTS public.household_members (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    household_id UUID NOT NULL REFERENCES public.households(id) ON DELETE CASCADE,
-    user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-    role TEXT NOT NULL DEFAULT 'member' CHECK (role IN ('admin', 'member')),
-    joined_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    UNIQUE (household_id, user_id)
-);
-CREATE INDEX IF NOT EXISTS idx_members_user ON public.household_members(user_id);
-CREATE INDEX IF NOT EXISTS idx_members_household ON public.household_members(household_id);
-
--- 4. Invitaciones al hogar (Household Invitations)
-CREATE TABLE IF NOT EXISTS public.household_invitations (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    household_id UUID NOT NULL REFERENCES public.households(id) ON DELETE CASCADE,
-    email TEXT NOT NULL,
-    invited_by UUID NOT NULL REFERENCES auth.users(id),
-    role TEXT NOT NULL DEFAULT 'member' CHECK (role IN ('admin', 'member')),
-    token TEXT NOT NULL UNIQUE,
-    expires_at TIMESTAMPTZ NOT NULL,
-    accepted_at TIMESTAMPTZ,
+-- 1. Tabla de Autorización Mínima (app_members)
+-- Solo almacena los user_id de las dos cuentas autorizadas.
+-- Gestión exclusivamente administrativa (SQL Editor / Service Role); ningún cliente puede insertar/modificar.
+CREATE TABLE IF NOT EXISTS public.app_members (
+    user_id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
-CREATE INDEX IF NOT EXISTS idx_invitations_token ON public.household_invitations(token);
 
--- 5. Estado del hogar desacoplado (Household State)
--- Sustituye las filas especiales de categories (_PLANNER_STATE_, _FREEZER_STATE_, etc.)
-CREATE TABLE IF NOT EXISTS public.household_state (
-    household_id UUID NOT NULL REFERENCES public.households(id) ON DELETE CASCADE,
-    state_key TEXT NOT NULL CHECK (state_key IN ('planner', 'freezer', 'shopping_list', 'favorites')),
+-- 2. Función Segura de Verificación de Membresía
+-- Utiliza SECURITY DEFINER con search_path explícito y permisos mínimos.
+CREATE OR REPLACE FUNCTION public.is_app_member()
+RETURNS BOOLEAN
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+STABLE
+AS $$
+    SELECT EXISTS (
+        SELECT 1 FROM public.app_members
+        WHERE user_id = auth.uid()
+    );
+$$;
+
+-- Permisos mínimos estrictos sobre la función
+REVOKE ALL ON FUNCTION public.is_app_member() FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.is_app_member() FROM anon;
+GRANT EXECUTE ON FUNCTION public.is_app_member() TO authenticated;
+
+-- 3. Tabla de Estado Compartido (shared_state)
+-- Desacopla y reemplaza las filas especiales _PLANNER_STATE_, _FREEZER_STATE_, etc.
+CREATE TABLE IF NOT EXISTS public.shared_state (
+    state_key TEXT PRIMARY KEY CHECK (state_key IN ('planner', 'freezer', 'shopping_list', 'favorites')),
     payload JSONB NOT NULL DEFAULT '{}'::jsonb,
     version INTEGER NOT NULL DEFAULT 1,
-    updated_by UUID REFERENCES auth.users(id) ON DELETE SET NULL,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    PRIMARY KEY (household_id, state_key)
+    updated_by UUID REFERENCES auth.users(id) ON DELETE SET NULL
 );
 
--- 6. Modificaciones aditivas a la tabla recipes (conservando TEXT id original)
-ALTER TABLE public.recipes 
-    ADD COLUMN IF NOT EXISTS household_id UUID REFERENCES public.households(id) ON DELETE CASCADE,
+-- 4. Modificaciones Aditivas a recipes y categories (Sin columnas de hogares ni catálogo)
+ALTER TABLE public.recipes
     ADD COLUMN IF NOT EXISTS created_by UUID REFERENCES auth.users(id) ON DELETE SET NULL,
-    ADD COLUMN IF NOT EXISTS is_shared_catalog BOOLEAN NOT NULL DEFAULT false,
-    ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT now();
 
-CREATE INDEX IF NOT EXISTS idx_recipes_household ON public.recipes(household_id);
-CREATE INDEX IF NOT EXISTS idx_recipes_catalog ON public.recipes(is_shared_catalog);
+-- 5. Migración No Destructiva de las 4 Filas Especiales a shared_state
+-- NOTA: Las filas originales en public.categories SE CONSERVAN INTACTAS como respaldo de auditoría.
+INSERT INTO public.shared_state (state_key, payload, version, updated_at)
+SELECT
+    'planner',
+    CASE WHEN c.name IS NULL OR trim(c.name) = '' THEN '{}'::jsonb ELSE c.name::jsonb END,
+    1,
+    now()
+FROM public.categories c WHERE c.id = '_PLANNER_STATE_'
+ON CONFLICT (state_key) DO UPDATE SET payload = EXCLUDED.payload;
 
--- Clasificar recetas existentes: pasan a ser catálogo global compartido
-UPDATE public.recipes 
-SET is_shared_catalog = true 
-WHERE household_id IS NULL;
+INSERT INTO public.shared_state (state_key, payload, version, updated_at)
+SELECT
+    'freezer',
+    CASE WHEN c.name IS NULL OR trim(c.name) = '' THEN '[]'::jsonb ELSE c.name::jsonb END,
+    1,
+    now()
+FROM public.categories c WHERE c.id = '_FREEZER_STATE_'
+ON CONFLICT (state_key) DO UPDATE SET payload = EXCLUDED.payload;
 
--- 7. Modificaciones aditivas a la tabla categories
-ALTER TABLE public.categories 
-    ADD COLUMN IF NOT EXISTS household_id UUID REFERENCES public.households(id) ON DELETE CASCADE;
+INSERT INTO public.shared_state (state_key, payload, version, updated_at)
+SELECT
+    'shopping_list',
+    CASE WHEN c.name IS NULL OR trim(c.name) = '' THEN '[]'::jsonb ELSE c.name::jsonb END,
+    1,
+    now()
+FROM public.categories c WHERE c.id = '_SHOPPING_LIST_STATE_'
+ON CONFLICT (state_key) DO UPDATE SET payload = EXCLUDED.payload;
 
-CREATE INDEX IF NOT EXISTS idx_categories_household ON public.categories(household_id);
+INSERT INTO public.shared_state (state_key, payload, version, updated_at)
+SELECT
+    'favorites',
+    CASE WHEN c.name IS NULL OR trim(c.name) = '' THEN '[]'::jsonb ELSE c.name::jsonb END,
+    1,
+    now()
+FROM public.categories c WHERE c.id = '_FAVORITES_STATE_'
+ON CONFLICT (state_key) DO UPDATE SET payload = EXCLUDED.payload;
 
--- 8. Funciones de ayuda SECURITY DEFINER (para evitar recursión infinita en políticas RLS)
-CREATE OR REPLACE FUNCTION public.is_household_member(h_id UUID)
-RETURNS BOOLEAN
-LANGUAGE sql
-SECURITY DEFINER
-STABLE
-AS $$
-    SELECT EXISTS (
-        SELECT 1 FROM public.household_members
-        WHERE household_id = h_id AND user_id = auth.uid()
-    );
-$$;
-
-CREATE OR REPLACE FUNCTION public.is_household_admin(h_id UUID)
-RETURNS BOOLEAN
-LANGUAGE sql
-SECURITY DEFINER
-STABLE
-AS $$
-    SELECT EXISTS (
-        SELECT 1 FROM public.household_members
-        WHERE household_id = h_id AND user_id = auth.uid() AND role = 'admin'
-    );
-$$;
-
--- 9. Retirada estricta de políticas de escritura anónima de V1
+-- 6. Retirada Explícita de Políticas V1 y Revocación de Permisos (GRANT/REVOKE)
+DROP POLICY IF EXISTS "Public recipes are viewable by everyone." ON public.recipes;
 DROP POLICY IF EXISTS "Permitir insertar recetas a todos" ON public.recipes;
 DROP POLICY IF EXISTS "Permitir actualizar recetas a todos" ON public.recipes;
+DROP POLICY IF EXISTS "Public profiles are viewable by everyone." ON public.categories;
 DROP POLICY IF EXISTS "Permitir insertar categorías a todos" ON public.categories;
-
--- Revocar permisos de modificación al rol anon
-REVOKE INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public FROM anon;
-
--- 10. Habilitación de RLS
-ALTER TABLE public.households ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.household_members ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.household_invitations ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.household_state ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.recipes ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.categories ENABLE ROW LEVEL SECURITY;
-
--- 11. Políticas RLS: households
-DROP POLICY IF EXISTS "Households member select" ON public.households;
-CREATE POLICY "Households member select" ON public.households
-    FOR SELECT USING (public.is_household_member(id));
-
-DROP POLICY IF EXISTS "Households admin update" ON public.households;
-CREATE POLICY "Households admin update" ON public.households
-    FOR UPDATE USING (public.is_household_admin(id));
-
-DROP POLICY IF EXISTS "Households admin delete" ON public.households;
-CREATE POLICY "Households admin delete" ON public.households
-    FOR DELETE USING (public.is_household_admin(id));
-
--- 12. Políticas RLS: household_members
-DROP POLICY IF EXISTS "Household members select" ON public.household_members;
-CREATE POLICY "Household members select" ON public.household_members
-    FOR SELECT USING (public.is_household_member(household_id));
-
-DROP POLICY IF EXISTS "Household members admin insert" ON public.household_members;
-CREATE POLICY "Household members admin insert" ON public.household_members
-    FOR INSERT WITH CHECK (
-        public.is_household_admin(household_id) OR
-        auth.uid() = user_id -- permite registrarse al aceptar invitación
-    );
-
-DROP POLICY IF EXISTS "Household members admin update" ON public.household_members;
-CREATE POLICY "Household members admin update" ON public.household_members
-    FOR UPDATE USING (public.is_household_admin(household_id));
-
-DROP POLICY IF EXISTS "Household members delete" ON public.household_members;
-CREATE POLICY "Household members delete" ON public.household_members
-    FOR DELETE USING (
-        public.is_household_admin(household_id) OR auth.uid() = user_id -- auto-salida
-    );
-
--- 13. Políticas RLS: recipes
-DROP POLICY IF EXISTS "Recipes read policy" ON public.recipes;
-CREATE POLICY "Recipes read policy" ON public.recipes
-    FOR SELECT USING (
-        is_shared_catalog = true OR 
-        (household_id IS NOT NULL AND public.is_household_member(household_id))
-    );
-
-DROP POLICY IF EXISTS "Recipes insert policy" ON public.recipes;
-CREATE POLICY "Recipes insert policy" ON public.recipes
-    FOR INSERT WITH CHECK (
-        auth.uid() IS NOT NULL AND 
-        household_id IS NOT NULL AND 
-        public.is_household_member(household_id)
-    );
-
-DROP POLICY IF EXISTS "Recipes update policy" ON public.recipes;
-CREATE POLICY "Recipes update policy" ON public.recipes
-    FOR UPDATE USING (
-        household_id IS NOT NULL AND public.is_household_member(household_id)
-    );
-
-DROP POLICY IF EXISTS "Recipes delete policy" ON public.recipes;
-CREATE POLICY "Recipes delete policy" ON public.recipes
-    FOR DELETE USING (
-        household_id IS NOT NULL AND public.is_household_member(household_id)
-    );
-
--- 14. Políticas RLS: categories
-DROP POLICY IF EXISTS "Categories read policy" ON public.categories;
-CREATE POLICY "Categories read policy" ON public.categories
-    FOR SELECT USING (
-        household_id IS NULL OR public.is_household_member(household_id)
-    );
-
-DROP POLICY IF EXISTS "Categories insert policy" ON public.categories;
-CREATE POLICY "Categories insert policy" ON public.categories
-    FOR INSERT WITH CHECK (
-        auth.uid() IS NOT NULL AND 
-        household_id IS NOT NULL AND 
-        public.is_household_member(household_id)
-    );
-
-DROP POLICY IF EXISTS "Categories update policy" ON public.categories;
-CREATE POLICY "Categories update policy" ON public.categories
-    FOR UPDATE USING (
-        household_id IS NOT NULL AND public.is_household_member(household_id)
-    );
-
-DROP POLICY IF EXISTS "Categories delete policy" ON public.categories;
-CREATE POLICY "Categories delete policy" ON public.categories
-    FOR DELETE USING (
-        household_id IS NOT NULL AND public.is_household_member(household_id)
-    );
-
--- 15. Políticas RLS: household_state
-DROP POLICY IF EXISTS "Household state access policy" ON public.household_state;
-CREATE POLICY "Household state access policy" ON public.household_state
-    FOR ALL USING (
-        public.is_household_member(household_id)
-    ) WITH CHECK (
-        public.is_household_member(household_id)
-    );
-
--- 16. Políticas de Storage en bucket privado household-media
-INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
-VALUES (
-    'household-media',
-    'household-media',
-    false, -- Estrictamente privado: sin URLs públicas de CDN
-    5242880, -- 5 MB máximo
-    ARRAY['image/jpeg', 'image/png', 'image/webp']
-) ON CONFLICT (id) DO NOTHING;
-
--- Revocar subidas anónimas al bucket recipe-images original
+DROP POLICY IF EXISTS "Permitir insertar categorías a todos." ON public.categories;
 DROP POLICY IF EXISTS "Public Upload" ON storage.objects;
+DROP POLICY IF EXISTS "Public Read" ON storage.objects;
 DROP POLICY IF EXISTS "Public Update" ON storage.objects;
 DROP POLICY IF EXISTS "Public Delete" ON storage.objects;
 
--- Acceso a household-media según membresía (path format: "{household_id}/{filename}")
-DROP POLICY IF EXISTS "Household media select" ON storage.objects;
-CREATE POLICY "Household media select" ON storage.objects
-    FOR SELECT USING (
-        bucket_id = 'household-media' AND
-        public.is_household_member((storage.foldername(name))[1]::uuid)
+-- Revocar acceso completo al rol anónimo
+REVOKE ALL ON TABLE public.recipes FROM anon;
+REVOKE ALL ON TABLE public.categories FROM anon;
+REVOKE ALL ON TABLE public.app_members FROM anon;
+REVOKE ALL ON TABLE public.shared_state FROM anon;
+
+-- Prohibir mutaciones directas de app_members a clientes autenticados (solo admin/service_role)
+REVOKE INSERT, UPDATE, DELETE ON TABLE public.app_members FROM authenticated;
+
+-- Otorgar permisos base al rol authenticated
+GRANT USAGE ON SCHEMA public TO anon, authenticated;
+GRANT SELECT ON TABLE public.app_members TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.recipes, public.categories, public.shared_state TO authenticated;
+
+-- 7. Habilitación de Row Level Security (RLS)
+ALTER TABLE public.app_members ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.shared_state ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.recipes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.categories ENABLE ROW LEVEL SECURITY;
+
+-- 8. Políticas RLS: app_members
+-- Solo los miembros autorizados pueden ver la lista de membresía
+DROP POLICY IF EXISTS "Members can view membership" ON public.app_members;
+CREATE POLICY "Members can view membership" ON public.app_members
+    FOR SELECT TO authenticated
+    USING (public.is_app_member());
+
+-- 9. Políticas RLS: shared_state
+-- Ambos miembros autorizados tienen acceso total compartido (CRUD)
+DROP POLICY IF EXISTS "Shared state members access" ON public.shared_state;
+CREATE POLICY "Shared state members access" ON public.shared_state
+    FOR ALL TO authenticated
+    USING (public.is_app_member())
+    WITH CHECK (public.is_app_member());
+
+-- 10. Políticas RLS: recipes
+-- Ambos miembros autorizados tienen acceso total compartido (CRUD)
+DROP POLICY IF EXISTS "Recipes members access" ON public.recipes;
+CREATE POLICY "Recipes members access" ON public.recipes
+    FOR ALL TO authenticated
+    USING (public.is_app_member())
+    WITH CHECK (public.is_app_member());
+
+-- 11. Políticas RLS: categories
+-- Ambos miembros autorizados tienen acceso total compartido (CRUD)
+DROP POLICY IF EXISTS "Categories members access" ON public.categories;
+CREATE POLICY "Categories members access" ON public.categories
+    FOR ALL TO authenticated
+    USING (public.is_app_member())
+    WITH CHECK (public.is_app_member());
+
+-- 12. Configuración y Políticas de Storage (Privado)
+-- Asegurar que el bucket recipe-images sea privado y tenga cuotas estrictas
+UPDATE storage.buckets
+SET public = false,
+    file_size_limit = 5242880, -- 5 MB máximo
+    allowed_mime_types = ARRAY['image/jpeg', 'image/png', 'image/webp']
+WHERE id = 'recipe-images';
+
+-- Políticas de Storage en storage.objects para miembros de la app
+DROP POLICY IF EXISTS "Recipe images member select" ON storage.objects;
+CREATE POLICY "Recipe images member select" ON storage.objects
+    FOR SELECT TO authenticated
+    USING (bucket_id = 'recipe-images' AND public.is_app_member());
+
+DROP POLICY IF EXISTS "Recipe images member insert" ON storage.objects;
+CREATE POLICY "Recipe images member insert" ON storage.objects
+    FOR INSERT TO authenticated
+    WITH CHECK (
+        bucket_id = 'recipe-images' AND
+        public.is_app_member()
     );
 
-DROP POLICY IF EXISTS "Household media insert" ON storage.objects;
-CREATE POLICY "Household media insert" ON storage.objects
-    FOR INSERT WITH CHECK (
-        bucket_id = 'household-media' AND
-        auth.uid() IS NOT NULL AND
-        public.is_household_member((storage.foldername(name))[1]::uuid)
-    );
+DROP POLICY IF EXISTS "Recipe images member update" ON storage.objects;
+CREATE POLICY "Recipe images member update" ON storage.objects
+    FOR UPDATE TO authenticated
+    USING (bucket_id = 'recipe-images' AND public.is_app_member());
 
-DROP POLICY IF EXISTS "Household media delete" ON storage.objects;
-CREATE POLICY "Household media delete" ON storage.objects
-    FOR DELETE USING (
-        bucket_id = 'household-media' AND
-        public.is_household_member((storage.foldername(name))[1]::uuid)
-    );
+DROP POLICY IF EXISTS "Recipe images member delete" ON storage.objects;
+CREATE POLICY "Recipe images member delete" ON storage.objects
+    FOR DELETE TO authenticated
+    USING (bucket_id = 'recipe-images' AND public.is_app_member());
 
 COMMIT;

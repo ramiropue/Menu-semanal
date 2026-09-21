@@ -1,0 +1,6 @@
+# Root .gitignore
+backups/
+/backups/
+*.backup
+*.dump
+fase-0-security.patch

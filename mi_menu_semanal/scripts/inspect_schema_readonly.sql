@@ -6,7 +6,7 @@
 -- ==============================================================================
 
 -- 1. Tablas y columnas públicas
-SELECT 
+SELECT
     c.table_name,
     c.column_name,
     c.data_type,
@@ -17,7 +17,7 @@ WHERE c.table_schema = 'public'
 ORDER BY c.table_name, c.ordinal_position;
 
 -- 2. Estado de Row Level Security (RLS) en tablas públicas
-SELECT 
+SELECT
     schemaname,
     tablename,
     rowsecurity AS rls_enabled
@@ -26,7 +26,7 @@ WHERE schemaname = 'public'
 ORDER BY tablename;
 
 -- 3. Políticas RLS actualmente activas (en public y storage)
-SELECT 
+SELECT
     schemaname,
     tablename,
     policyname,
@@ -40,7 +40,7 @@ WHERE schemaname IN ('public', 'storage')
 ORDER BY schemaname, tablename, policyname;
 
 -- 4. Buckets de Storage configurados y sus restricciones
-SELECT 
+SELECT
     id,
     name,
     public,
@@ -53,3 +53,9 @@ ORDER BY id;
 SELECT 'recipes' AS table_name, count(*) AS total_rows FROM public.recipes
 UNION ALL
 SELECT 'categories', count(*) FROM public.categories;
+
+-- 6. Privilegios de tabla por rol (GRANTs existentes para anon y authenticated)
+SELECT grantee, table_name, privilege_type
+FROM information_schema.table_privileges
+WHERE table_schema = 'public' AND grantee IN ('anon', 'authenticated')
+ORDER BY table_name, grantee, privilege_type;
