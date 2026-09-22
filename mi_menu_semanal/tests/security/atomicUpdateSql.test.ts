@@ -102,14 +102,39 @@ describe('Real PostgreSQL Verification of supabase_v2_atomic_update.sql (PGlite)
     ).rejects.toThrow(/permission denied/i);
   });
 
-  it('prohibits authenticated non-member from modifying shared_state (RLS blocked)', async () => {
+  it('prohibits authenticated non-member from modifying shared_state (raises 42501, no payload returned)', async () => {
     await asSession('authenticated', nonMember_id);
-    // RLS en public.shared_state impide que un no-miembro bloquee/actualice filas
-    const result = await db.query<{ success: boolean }>(
-      `SELECT * FROM public.update_shared_state('planner', '{"lunes":[]}'::jsonb, 1);`
-    );
-    // Debido a RLS USING (is_app_member()), SELECT FOR UPDATE no encuentra la fila para no-miembros
-    expect(result.rows[0].success).toBe(false);
+    let capturedErr: { message?: string; code?: string; fields?: Record<string, string> } | null = null;
+    try {
+      await db.query(
+        `SELECT * FROM public.update_shared_state('planner', '{"lunes":[]}'::jsonb, 1);`
+      );
+    } catch (err: unknown) {
+      capturedErr = err as { message?: string; code?: string; fields?: Record<string, string> };
+    }
+    expect(capturedErr).not.toBeNull();
+    // Excepción obligatoria con código 42501: no se filtra ninguna fila ni current_payload
+    expect(capturedErr?.message).toMatch(/Usuario no autorizado para modificar shared_state/i);
+    expect(capturedErr?.code || capturedErr?.fields?.code || capturedErr?.message).toMatch(/42501|Usuario no autorizado/i);
+  });
+
+  it('raises controlled error P0002 if key is valid but row does not exist in shared_state', async () => {
+    // authenticated no tiene permiso DELETE sobre shared_state (seguridad de Stage 4A).
+    // Eliminamos la fila temporalmente como superusuario / postgres para la prueba.
+    await db.exec(`SET ROLE postgres; DELETE FROM public.shared_state WHERE state_key = 'favorites';`);
+
+    await asSession('authenticated', memberA_id);
+    let capturedErr: { message?: string; code?: string; fields?: Record<string, string> } | null = null;
+    try {
+      await db.query(
+        `SELECT * FROM public.update_shared_state('favorites', '[]'::jsonb, 1);`
+      );
+    } catch (err: unknown) {
+      capturedErr = err as { message?: string; code?: string; fields?: Record<string, string> };
+    }
+    expect(capturedErr).not.toBeNull();
+    expect(capturedErr?.message).toMatch(/No se encontró la fila de estado compartido/i);
+    expect(capturedErr?.code || capturedErr?.fields?.code || capturedErr?.message).toMatch(/P0002|No se encontró/i);
   });
 
   it('allows authorized member to update shared_state, incrementing version and setting updated_by/updated_at', async () => {

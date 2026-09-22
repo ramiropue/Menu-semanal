@@ -5,6 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { getSafeRedirectUrl } from '@/lib/auth/url';
 import { sendMagicLink } from '@/lib/auth/magicLink';
+import { clearSharedStateCache } from '@/lib/state/stateAdapter';
 
 function getParamErrorMessage(errorParam: string | null): string | null {
   if (errorParam === 'unauthorized') {
@@ -30,6 +31,14 @@ function LoginForm() {
   const [customError, setCustomError] = useState<string | null>(null);
 
   const errorMessage = customError ?? getParamErrorMessage(errorParam);
+
+  // Limpieza defensiva inmediata de la caché privada si el servidor redirigió con error=unauthorized
+  // Cubre rechazos producidos en el callback o middleware del servidor
+  useEffect(() => {
+    if (errorParam === 'unauthorized') {
+      clearSharedStateCache();
+    }
+  }, [errorParam]);
 
   // Manejo del contador de espera (cooldown) para prevenir envíos repetidos
   useEffect(() => {

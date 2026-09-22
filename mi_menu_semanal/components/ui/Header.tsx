@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { SignOutButton } from "@/components/auth/SignOutButton";
 
 export function Header() {
   const pathname = usePathname();
@@ -50,7 +51,8 @@ export function Header() {
         })}
       </nav>
 
-      <div className="flex-1 flex justify-end">
+      <div className="flex-1 flex justify-end items-center gap-3">
+        <SignOutButton />
         <div className="w-10 h-10 rounded-full bg-surface-container-highest flex items-center justify-center overflow-hidden border-2 border-primary-fixed ring-2 ring-primary-container/20">
           <img
             alt="Perfil de Chef"

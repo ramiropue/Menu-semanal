@@ -2,9 +2,12 @@
 -- DRAFT / PREPARADO — NO EJECUTAR REMOTAMENTE HASTA AUTORIZACIÓN EXPRESA
 -- Archivo: supabase_v2_atomic_update.sql
 -- Objetivo: Función RPC atómica para actualización de shared_state con
---           Control Optimista de Concurrencia (OCC), validación en servidor
---           y aislamiento estricto (SECURITY INVOKER).
+--           Control Optimista de Concurrencia (OCC), validación en servidor,
+--           aislamiento estricto (SECURITY INVOKER) y verificación temprana
+--           de membresía.
 -- ==============================================================================
+
+BEGIN;
 
 -- 1. Definición de la función de actualización atómica
 CREATE OR REPLACE FUNCTION public.update_shared_state(
@@ -28,6 +31,12 @@ DECLARE
     v_updated_at TIMESTAMPTZ;
     v_elem JSONB;
 BEGIN
+    -- 0. Comprobación estricta de membresía antes de validar el payload o consultar la fila
+    IF NOT public.is_app_member() THEN
+        RAISE EXCEPTION 'Usuario no autorizado para modificar shared_state'
+            USING ERRCODE = '42501';
+    END IF;
+
     -- 1. Validar que la clave sea válida según la restricción de shared_state
     IF p_key NOT IN ('planner', 'freezer', 'shopping_list', 'favorites') THEN
         RAISE EXCEPTION 'Clave de estado compartida no permitida: %', p_key;
@@ -65,10 +74,10 @@ BEGIN
     WHERE state_key = p_key
     FOR UPDATE;
 
-    -- Si la fila no existiera (protección defensiva)
+    -- Si la fila no existiera (error controlado P0002 en vez de falso conflicto)
     IF NOT FOUND THEN
-        RETURN QUERY SELECT FALSE, 0, NULL::JSONB, NULL::TIMESTAMPTZ;
-        RETURN;
+        RAISE EXCEPTION 'No se encontró la fila de estado compartido para la clave: %', p_key
+            USING ERRCODE = 'P0002';
     END IF;
 
     -- 4. Comprobación estricta de OCC: solo actualiza si la versión coincide con la esperada
@@ -100,4 +109,6 @@ GRANT EXECUTE ON FUNCTION public.update_shared_state(TEXT, JSONB, INTEGER)
 TO authenticated;
 
 COMMENT ON FUNCTION public.update_shared_state(TEXT, JSONB, INTEGER) IS
-'Actualización atómica de shared_state con control optimista de concurrencia (OCC) y validación de tipos JSON en servidor.';
+'Actualización atómica de shared_state con control optimista de concurrencia (OCC), verificación temprana de membresía y validación de tipos JSON en servidor.';
+
+COMMIT;
