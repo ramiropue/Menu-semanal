@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { Header } from "@/components/ui/Header";
 import { BottomNav } from "@/components/ui/BottomNav";
 import { getFreezerItems, saveFreezerItems } from "@/lib/syncStore";
+import { handleMutationResult } from "@/lib/state/uiFeedback";
 
   const DEFAULT_ITEMS = [
     {
@@ -95,32 +96,56 @@ export default function CongeladorPage() {
     };
   }, [pathname]);
 
-  const updateCount = (id: number, delta: number) => {
-    setItems(prevItems => {
-      const newItems = prevItems.map(item => {
-        if (item.id === id) {
-          return { ...item, count: Math.max(0, item.count + delta) };
+  const updateCount = async (id: number, delta: number) => {
+    const prevItems = [...items];
+    const newItems = prevItems.map(item => {
+      if (item.id === id) {
+        return { ...item, count: Math.max(0, item.count + delta) };
+      }
+      return item;
+    });
+    setItems(newItems);
+
+    const result = await saveFreezerItems(newItems);
+    handleMutationResult(result, {
+      onRollback: () => setItems(prevItems),
+      onConflict: (current) => {
+        if (Array.isArray(current)) {
+          setItems(current);
         }
-        return item;
-      });
-      saveFreezerItems(newItems);
-      return newItems;
+      },
     });
   };
 
-  const updateDate = (id: number, newDate: string) => {
-    setItems(prevItems => {
-      const newItems = prevItems.map(item => item.id === id ? { ...item, date: newDate } : item);
-      saveFreezerItems(newItems);
-      return newItems;
+  const updateDate = async (id: number, newDate: string) => {
+    const prevItems = [...items];
+    const newItems = prevItems.map(item => item.id === id ? { ...item, date: newDate } : item);
+    setItems(newItems);
+
+    const result = await saveFreezerItems(newItems);
+    handleMutationResult(result, {
+      onRollback: () => setItems(prevItems),
+      onConflict: (current) => {
+        if (Array.isArray(current)) {
+          setItems(current);
+        }
+      },
     });
   };
 
-  const deleteItem = (id: number) => {
-    setItems(prevItems => {
-      const newItems = prevItems.filter(item => item.id !== id);
-      saveFreezerItems(newItems);
-      return newItems;
+  const deleteItem = async (id: number) => {
+    const prevItems = [...items];
+    const newItems = prevItems.filter(item => item.id !== id);
+    setItems(newItems);
+
+    const result = await saveFreezerItems(newItems);
+    handleMutationResult(result, {
+      onRollback: () => setItems(prevItems),
+      onConflict: (current) => {
+        if (Array.isArray(current)) {
+          setItems(current);
+        }
+      },
     });
   };
 

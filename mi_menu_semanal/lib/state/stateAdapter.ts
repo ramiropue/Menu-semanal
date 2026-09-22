@@ -18,33 +18,35 @@ export function isSharedStateEnabled(): boolean {
   return process.env.NEXT_PUBLIC_SHARED_STATE_ENABLED === 'true';
 }
 
-let cachedBrowserClient: SupabaseClient | null = null;
+let cachedClientOverride: SupabaseClient | null = null;
 
 /**
  * Obtiene el cliente Supabase adecuado:
  * En el navegador utiliza el cliente SSR con soporte para cookies de sesión.
- * En entornos sin ventana (Node/SSR/Tests) recurre al cliente configurado.
+ * En entornos sin ventana (Node/SSR/Tests) recurre al cliente configurado o mock inyectado.
  */
 export function getSupabaseClient(): SupabaseClient {
-  if (cachedBrowserClient) {
-    return cachedBrowserClient;
+  if (cachedClientOverride) {
+    return cachedClientOverride;
   }
   if (typeof window !== 'undefined') {
-    cachedBrowserClient = createBrowserClient() as unknown as SupabaseClient;
-    return cachedBrowserClient;
+    return createBrowserClient() as unknown as SupabaseClient;
   }
   return legacySupabase;
 }
 
 /**
- * Permite inyectar o reiniciar el cliente Supabase (útil para tests y reset de sesión).
+ * Permite inyectar o reiniciar el cliente Supabase (utilizado para tests y reset de sesión).
  */
 export function setSupabaseClient(client: SupabaseClient | null): void {
-  cachedBrowserClient = client;
+  cachedClientOverride = client;
 }
 
 // Caché en memoria para control optimista de versiones
 const versionCache = new Map<SharedStateKey, number>();
+
+// Colas de serialización por state_key para prevenir colisiones locales por pulsaciones rápidas
+const writeQueues = new Map<SharedStateKey, Promise<unknown>>();
 
 /**
  * Obtiene la versión conocida más reciente para una clave dada.
@@ -77,11 +79,68 @@ export function setCachedVersion(key: SharedStateKey, version: number): void {
 }
 
 /**
- * Limpia la caché en memoria (utilizado principalmente para tests o reset).
+ * Limpia la caché privada de las cuatro claves y sus versiones.
+ * Debe invocarse ante errores de autorización (401/403/42501) o al cerrar sesión.
+ */
+export function clearSharedStateCache(): void {
+  versionCache.clear();
+  if (typeof window !== 'undefined') {
+    for (const conf of Object.values(STATE_KEY_CONFIGS)) {
+      localStorage.removeItem(conf.storageKey);
+      localStorage.removeItem(`${conf.storageKey}_version`);
+    }
+  }
+}
+
+/**
+ * Limpia la caché y el cliente inyectado (utilizado principalmente para tests o reset).
  */
 export function resetStateCache(): void {
-  versionCache.clear();
-  cachedBrowserClient = null;
+  clearSharedStateCache();
+  writeQueues.clear();
+  cachedClientOverride = null;
+}
+
+/**
+ * Redirige al login de forma segura si se encuentra en entorno de navegador.
+ */
+export function safeRedirectToLogin(reason = 'unauthorized'): void {
+  if (typeof window !== 'undefined' && window.location) {
+    try {
+      // eslint-disable-next-line @next/next/no-location-assign-relative-destination
+      window.location.href = `/login?error=${encodeURIComponent(reason)}`;
+    } catch {
+      // Ignorar en entornos de test donde jsdom restringe window.location.href
+    }
+  }
+}
+
+/**
+ * Comprueba si un error devuelto por Supabase corresponde a falta de autorización o sesión caducada.
+ */
+export function isUnauthorizedError(
+  error: { code?: string; message?: string; status?: number } | null | undefined
+): boolean {
+  if (!error) return false;
+  const code = String(error.code || '');
+  const status = (error as { status?: number }).status;
+  const msg = (error.message || '').toLowerCase();
+  return (
+    status === 401 ||
+    status === 403 ||
+    code === '401' ||
+    code === '403' ||
+    code === '42501' ||
+    code === 'PGRST301' ||
+    msg.includes('permission denied') ||
+    msg.includes('jwt') ||
+    msg.includes('unauthorized') ||
+    msg.includes('forbidden') ||
+    msg.includes('not allowed') ||
+    msg.includes('session expired') ||
+    msg.includes('membership') ||
+    msg.includes('invalid claim')
+  );
 }
 
 /**
@@ -95,8 +154,8 @@ export function resetStateCache(): void {
  *   Consulta exclusivamente `public.shared_state`.
  *   Nunca consulta `categories`.
  *
- * Valida estrictamente el payload antes de aplicarlo.
- * En caso de error o payload inválido, rescata el valor por defecto sin bloquear la UI.
+ * En caso de 401/403/42501:
+ *   Purga la caché privada completa y no expone datos privados obsoletos.
  */
 export async function getState<T>(
   key: SharedStateKey,
@@ -136,6 +195,20 @@ export async function getState<T>(
         .single();
 
       if (error) {
+        if (isUnauthorizedError(error)) {
+          console.warn(`[stateAdapter] Acceso no autorizado a shared_state (${key}). Purgando caché privada.`);
+          clearSharedStateCache();
+          safeRedirectToLogin('unauthorized');
+          return {
+            data: defaultValue, // No devolver datos privados antiguos de caché
+            metadata: {
+              version: 1,
+              source: 'default',
+            },
+            error: new Error(error.message),
+          };
+        }
+
         console.error(`[stateAdapter] Error consultando shared_state para '${key}':`, error);
         return {
           data: localVal,
@@ -239,18 +312,9 @@ export async function getState<T>(
 }
 
 /**
- * Guarda el estado unificado con control optimista de concurrencia y validación estricta.
- *
- * Cero escrituras dobles:
- *   - Si flag está activo -> Guarda únicamente en `shared_state`.
- *   - Si flag está inactivo -> Guarda únicamente en `categories`.
- *
- * Control optimista de concurrencia (V2):
- *   - Verifica que la versión coincida con expectedVersion.
- *   - En caso de conflicto de versión: detecta la colisión, recarga el estado remoto actual,
- *     actualiza la caché y emite evento de conflicto.
+ * Ejecuta la mutación de guardado (interna).
  */
-export async function saveState<T>(
+async function executeSaveState<T>(
   key: SharedStateKey,
   value: T,
   options?: StateSaveOptions,
@@ -259,7 +323,7 @@ export async function saveState<T>(
   const config = STATE_KEY_CONFIGS[key];
   const supabase = clientOverride || getSupabaseClient();
 
-  // 1. Validación estricta del payload antes de emitir o persistir
+  // 1. Validación estricta del payload antes de intentar persistir
   const validation = validatePayload(key, value);
   if (!validation.valid) {
     const errorMsg = `Validación rechazada para '${key}': ${validation.error}`;
@@ -271,34 +335,28 @@ export async function saveState<T>(
     };
   }
 
-  // 2. Actualización optimista en caché local y evento UI
-  const jsonStr = JSON.stringify(value);
-  if (typeof window !== 'undefined') {
-    localStorage.setItem(config.storageKey, jsonStr);
-    window.dispatchEvent(new Event(config.eventKey));
-  }
-
-  // 3. Persistencia según feature flag
+  // 2. Persistencia según feature flag
   if (isSharedStateEnabled()) {
-    // MODO V2: Escritura exclusiva en public.shared_state (cero escrituras a categories)
+    // MODO V2: Escritura exclusiva vía RPC public.update_shared_state
+    // IMPORTANTE: expectedVersion se evalúa en el momento exacto de ejecución
     const expectedVersion = options?.expectedVersion ?? getCachedVersion(key);
 
     try {
-      // Intento de actualización atómica con condición OCC (version = expectedVersion)
-      const { data, error } = await supabase
-        .from('shared_state')
-        .update({
-          payload: value as unknown as Record<string, unknown>,
-          version: expectedVersion + 1,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('state_key', key)
-        .eq('version', expectedVersion)
-        .select('version, payload, updated_at');
+      const { data: rpcData, error } = await supabase.rpc('update_shared_state', {
+        p_key: key,
+        p_payload: value,
+        p_expected_version: expectedVersion,
+      });
 
       if (error) {
-        const isUnauthorized = error.code === '42501' || error.message.includes('permission');
-        console.error(`[stateAdapter] Error guardando en shared_state (${key}):`, error);
+        const isUnauthorized = isUnauthorizedError(error);
+        if (isUnauthorized) {
+          console.warn(`[stateAdapter] Mutación no autorizada en shared_state (${key}). Purgando caché.`);
+          clearSharedStateCache();
+          safeRedirectToLogin('unauthorized');
+        } else {
+          console.error(`[stateAdapter] Error RPC update_shared_state (${key}):`, error);
+        }
         return {
           success: false,
           error: error.message,
@@ -307,64 +365,66 @@ export async function saveState<T>(
         };
       }
 
-      // Si la consulta actualizó la fila con éxito
-      if (data && data.length > 0) {
-        const updatedRow = data[0];
-        const newVersion = updatedRow.version as number;
-        setCachedVersion(key, newVersion);
+      // Procesar resultado de la tabla devuelta por la función RPC
+      const row = Array.isArray(rpcData) ? rpcData[0] : rpcData;
 
+      if (!row) {
         return {
-          success: true,
-          version: newVersion,
-          data: updatedRow.payload as T,
+          success: false,
+          error: 'Respuesta vacía del servidor RPC update_shared_state',
           source: 'v2',
         };
       }
 
-      // Si 0 filas se actualizaron -> CONFLICTO DE CONCURRENCIA (versión obsoleta)
-      console.warn(`[stateAdapter] Conflicto de concurrencia detectado para '${key}'. Versión esperada: ${expectedVersion}`);
+      // Caso A: Actualización exitosa en el servidor
+      if (row.success === true) {
+        const newVersion = row.current_version as number;
+        setCachedVersion(key, newVersion);
 
-      // Recargar de inmediato el registro remoto actual para informar al cliente
-      const { data: latestRecord, error: fetchErr } = await supabase
-        .from('shared_state')
-        .select('payload, version, updated_at')
-        .eq('state_key', key)
-        .single();
-
-      if (!fetchErr && latestRecord) {
-        const currentVersion = latestRecord.version as number;
-        setCachedVersion(key, currentVersion);
-
-        // Actualizar caché local con la verdad del servidor para evitar desincronización
+        // Confirmar en caché local ÚNICAMENTE tras el éxito remoto
         if (typeof window !== 'undefined') {
-          localStorage.setItem(config.storageKey, JSON.stringify(latestRecord.payload));
+          localStorage.setItem(config.storageKey, JSON.stringify(row.current_payload));
           window.dispatchEvent(new Event(config.eventKey));
-          window.dispatchEvent(
-            new CustomEvent(`${config.storageKey}_conflict`, {
-              detail: {
-                key,
-                expectedVersion,
-                currentVersion,
-                currentData: latestRecord.payload,
-              },
-            })
-          );
         }
 
         return {
-          success: false,
-          conflict: true,
-          currentVersion,
-          currentData: latestRecord.payload,
-          error: `Conflicto de concurrencia en '${key}': el dato fue modificado por otra sesión (v${expectedVersion} -> v${currentVersion}).`,
+          success: true,
+          version: newVersion,
+          data: row.current_payload as T,
           source: 'v2',
         };
+      }
+
+      // Caso B: Conflicto OCC (versión desfasada en el servidor)
+      console.warn(
+        `[stateAdapter] Conflicto OCC detectado en '${key}' (v${expectedVersion} vs v${row.current_version}).`
+      );
+
+      const currentVersion = row.current_version as number;
+      setCachedVersion(key, currentVersion);
+
+      // Reemplazar la caché local con el estado más reciente del servidor
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(config.storageKey, JSON.stringify(row.current_payload));
+        window.dispatchEvent(new Event(config.eventKey));
+        window.dispatchEvent(
+          new CustomEvent(`${config.storageKey}_conflict`, {
+            detail: {
+              key,
+              expectedVersion,
+              currentVersion,
+              currentData: row.current_payload,
+            },
+          })
+        );
       }
 
       return {
         success: false,
         conflict: true,
-        error: `Conflicto de concurrencia en '${key}': versión remota no coincide con v${expectedVersion}.`,
+        currentVersion,
+        currentData: row.current_payload,
+        error: `Conflicto de concurrencia en '${key}': el dato fue modificado por otra sesión (v${expectedVersion} -> v${currentVersion}).`,
         source: 'v2',
       };
     } catch (err) {
@@ -378,13 +438,30 @@ export async function saveState<T>(
     }
   } else {
     // MODO V1: Escritura exclusiva en categories (sin tocar shared_state)
+    const jsonStr = JSON.stringify(value);
     try {
-      await supabase.from('categories').upsert({
+      const { error } = await supabase.from('categories').upsert({
         id: config.v1CategoryId,
         name: jsonStr,
         icon: 'settings',
         is_active: false,
       });
+
+      // Si Supabase rechazó la operación, NO confirmar en localStorage y devolver error
+      if (error) {
+        console.error(`[stateAdapter] Error guardando estado V1 en categories (${config.v1CategoryId}):`, error);
+        return {
+          success: false,
+          error: error.message,
+          source: 'v1',
+        };
+      }
+
+      // Confirmar en caché local únicamente tras éxito de upsert
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(config.storageKey, jsonStr);
+        window.dispatchEvent(new Event(config.eventKey));
+      }
 
       return {
         success: true,
@@ -393,7 +470,7 @@ export async function saveState<T>(
         source: 'v1',
       };
     } catch (e) {
-      console.error(`[stateAdapter] Error guardando estado V1 en categories (${config.v1CategoryId}):`, e);
+      console.error(`[stateAdapter] Excepción guardando estado V1 en categories (${config.v1CategoryId}):`, e);
       return {
         success: false,
         isNetworkError: true,
@@ -402,4 +479,38 @@ export async function saveState<T>(
       };
     }
   }
+}
+
+/**
+ * Guarda el estado unificado con serialización estricta por clave (cola de promesas),
+ * control optimista de concurrencia vía RPC y caché atómica pos-confirmación.
+ *
+ * Garantías:
+ * 1. Lee expectedVersion al empezar a ejecutarse, no al encolarse.
+ * 2. Continúa procesando la cola aunque una operación anterior falle.
+ * 3. Se limpia en finally sin eliminar operaciones posteriores.
+ * 4. No confirma en localStorage antes de que el servidor acepte el cambio.
+ */
+export async function saveState<T>(
+  key: SharedStateKey,
+  value: T,
+  options?: StateSaveOptions,
+  clientOverride?: SupabaseClient
+): Promise<StateSaveResult<T>> {
+  const previousOp = writeQueues.get(key) || Promise.resolve();
+
+  const currentOpPromise: Promise<StateSaveResult<T>> = previousOp
+    .catch(() => {}) // Continuar funcionando aunque la operación anterior haya sido rechazada
+    .then(() => {
+      return executeSaveState<T>(key, value, options, clientOverride);
+    })
+    .finally(() => {
+      // Limpieza segura en finally sin eliminar una operación posterior
+      if (writeQueues.get(key) === currentOpPromise) {
+        writeQueues.delete(key);
+      }
+    });
+
+  writeQueues.set(key, currentOpPromise);
+  return currentOpPromise;
 }

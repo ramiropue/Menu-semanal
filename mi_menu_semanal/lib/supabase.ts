@@ -1,17 +1,37 @@
-import { createClient } from '@supabase/supabase-js';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co';
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder-anon-key';
+let _supabaseInstance: SupabaseClient | null = null;
 
-if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
-  console.warn('Faltan variables de entorno para Supabase. Verifica tu archivo .env.local');
+/**
+ * Retorna la instancia singleton del cliente Supabase con inicialización diferida.
+ * Lanza un error explícito si faltan variables reales en lugar de usar placeholders.
+ */
+export function getLegacySupabaseClient(): SupabaseClient {
+  if (!_supabaseInstance) {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+    if (!supabaseUrl || !supabaseAnonKey) {
+      throw new Error(
+        'Supabase configuration missing: NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY must be defined in environment variables.'
+      );
+    }
+    _supabaseInstance = createClient(supabaseUrl, supabaseAnonKey);
+  }
+  return _supabaseInstance;
 }
 
 /**
- * @deprecated En V2, utiliza:
- * - `import { createClient } from '@/lib/supabase/client'` para componentes cliente ("use client").
- * - `import { createClient } from '@/lib/supabase/server'` para Server Components, Actions y Route Handlers.
- *
- * Este export singleton se mantiene temporalmente por compatibilidad regresiva.
+ * Exportación singleton perezosa mediante Proxy para retrocompatibilidad segura.
+ * No intenta inicializar la conexión en tiempo de importación de módulos.
  */
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+export const supabase = new Proxy({} as SupabaseClient, {
+  get(_target, prop, receiver) {
+    const client = getLegacySupabaseClient();
+    const value = Reflect.get(client, prop, receiver);
+    if (typeof value === 'function') {
+      return value.bind(client);
+    }
+    return value;
+  },
+});

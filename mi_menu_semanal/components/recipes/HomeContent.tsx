@@ -7,6 +7,7 @@ import { CategoryScroll } from "@/components/recipes/CategoryScroll";
 import { RecipeGrid } from "@/components/recipes/RecipeGrid";
 import { AssignToPlannerModal } from "@/components/planner/AssignToPlannerModal";
 import { getFavorites, saveFavorites } from "@/lib/syncStore";
+import { handleMutationResult } from "@/lib/state/uiFeedback";
 
 export function HomeContent({ 
   initialCategories, 
@@ -79,12 +80,22 @@ export function HomeContent({
   };
 
   // Manejar el toggle de favorito
-  const handleToggleFavorite = (recipeId: string, newValue: boolean) => {
-    setRecipes(prev => {
-      const newRecipes = prev.map(r => r.id === recipeId ? { ...r, is_favorite: newValue } : r);
-      const favoriteIds = newRecipes.filter(r => r.is_favorite).map(r => r.id);
-      saveFavorites(favoriteIds);
-      return newRecipes;
+  const handleToggleFavorite = async (recipeId: string, newValue: boolean) => {
+    const prevRecipes = recipes;
+    const newRecipes = prevRecipes.map(r => r.id === recipeId ? { ...r, is_favorite: newValue } : r);
+    setRecipes(newRecipes);
+
+    const favoriteIds = newRecipes.filter(r => r.is_favorite).map(r => r.id);
+    const result = await saveFavorites(favoriteIds);
+
+    handleMutationResult(result, {
+      onRollback: () => setRecipes(prevRecipes),
+      onConflict: (current) => {
+        if (Array.isArray(current)) {
+          const freshIds = current as string[];
+          setRecipes(prev => prev.map(r => ({ ...r, is_favorite: freshIds.includes(r.id) })));
+        }
+      },
     });
   };
 

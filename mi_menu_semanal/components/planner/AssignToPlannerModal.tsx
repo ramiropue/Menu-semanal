@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { Recipe, RECIPES } from "@/data/mockData";
 import { getPlannedMeals, savePlannedMeals, PLANNER_EVENT_KEY, MealSlot } from "@/lib/plannerStore";
 import { supabase } from "@/lib/supabase";
+import { handleMutationResult } from "@/lib/state/uiFeedback";
 
 interface AssignToPlannerModalProps {
   recipe: Recipe | null;
@@ -120,7 +121,7 @@ export function AssignToPlannerModal({ recipe, onClose, allRecipes = [] }: Assig
     return normalized;
   };
 
-  const toggleAssignRecipe = (date: string, type: "DESAYUNO" | "COMIDA" | "CENA") => {
+  const toggleAssignRecipe = async (date: string, type: "DESAYUNO" | "COMIDA" | "CENA") => {
     const meals = getNormalizedMealsForDate(date);
     const newMeals = [...meals];
     const mealIndex = newMeals.findIndex((m) => m.type === type);
@@ -140,13 +141,22 @@ export function AssignToPlannerModal({ recipe, onClose, allRecipes = [] }: Assig
       newMeals[mealIndex] = { ...newMeals[mealIndex], recipeIds: currentIds };
     }
 
+    const prevMeals = plannedMeals;
     const updatedMeals = {
       ...plannedMeals,
       [date]: newMeals,
     };
 
     setPlannedMeals(updatedMeals);
-    savePlannedMeals(updatedMeals);
+    const result = await savePlannedMeals(updatedMeals);
+    handleMutationResult(result, {
+      onRollback: () => setPlannedMeals(prevMeals),
+      onConflict: (current) => {
+        if (current && typeof current === 'object' && !Array.isArray(current)) {
+          setPlannedMeals(current as Record<string, MealSlot[]>);
+        }
+      },
+    });
   };
 
   const isAssigned = (date: string, type: "DESAYUNO" | "COMIDA" | "CENA") => {

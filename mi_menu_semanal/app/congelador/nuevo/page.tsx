@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { BottomNav } from "@/components/ui/BottomNav";
 import { getFreezerItems, saveFreezerItems } from "@/lib/syncStore";
+import { handleMutationResult, showToast } from "@/lib/state/uiFeedback";
 
 export default function AñadirCongeladorPage() {
   const router = useRouter();
@@ -31,7 +32,7 @@ export default function AñadirCongeladorPage() {
 
   const handleSave = async () => {
     if (!titulo.trim()) {
-      alert("Por favor, introduce el nombre de lo que vas a guardar.");
+      showToast("Por favor, introduce el nombre de lo que vas a guardar.", "warning");
       return;
     }
 
@@ -66,8 +67,13 @@ export default function AñadirCongeladorPage() {
       warningColor: "text-gray-500"
     };
 
-    await saveFreezerItems([newItem, ...items]);
-    router.push('/congelador');
+    const result = await saveFreezerItems([newItem, ...items]);
+    const success = handleMutationResult(result, {
+      successMessage: "¡Producto añadido al congelador!",
+    });
+    if (success) {
+      router.push('/congelador');
+    }
   };
 
   return (

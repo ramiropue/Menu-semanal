@@ -2,7 +2,8 @@
 -- DRAFT / PREPARADO — NO EJECUTAR REMOTAMENTE HASTA AUTORIZACIÓN EXPRESA
 -- Archivo: supabase_v2_atomic_update.sql
 -- Objetivo: Función RPC atómica para actualización de shared_state con
---           Control Optimista de Concurrencia (OCC) y aislamiento estricto.
+--           Control Optimista de Concurrencia (OCC), validación en servidor
+--           y aislamiento estricto (SECURITY INVOKER).
 -- ==============================================================================
 
 -- 1. Definición de la función de actualización atómica
@@ -19,32 +20,58 @@ RETURNS TABLE (
 )
 LANGUAGE plpgsql
 SECURITY INVOKER -- Ejecuta con los permisos del llamador para respetar RLS (is_app_member)
-SET search_path = public
+SET search_path = public, pg_temp
 AS $$
 DECLARE
     v_current_version INTEGER;
     v_current_payload JSONB;
     v_updated_at TIMESTAMPTZ;
+    v_elem JSONB;
 BEGIN
-    -- Validar que la clave sea válida según la restricción CHECK de shared_state
+    -- 1. Validar que la clave sea válida según la restricción de shared_state
     IF p_key NOT IN ('planner', 'freezer', 'shopping_list', 'favorites') THEN
         RAISE EXCEPTION 'Clave de estado compartida no permitida: %', p_key;
     END IF;
 
-    -- Bloqueo pesimista de fila durante la transacción para serializar escrituras concurrentes
+    -- 2. Validación estricta de payloads en servidor
+    IF p_payload IS NULL THEN
+        RAISE EXCEPTION 'El payload no puede ser NULL para la clave: %', p_key;
+    END IF;
+
+    IF p_key = 'planner' THEN
+        IF jsonb_typeof(p_payload) <> 'object' THEN
+            RAISE EXCEPTION 'El payload para planner debe ser un objeto JSON (recibido %)', jsonb_typeof(p_payload);
+        END IF;
+    ELSE
+        -- freezer, shopping_list y favorites deben ser arrays
+        IF jsonb_typeof(p_payload) <> 'array' THEN
+            RAISE EXCEPTION 'El payload para % debe ser un array JSON (recibido %)', p_key, jsonb_typeof(p_payload);
+        END IF;
+
+        -- favorites exige que cada elemento sea una cadena de texto (string)
+        IF p_key = 'favorites' THEN
+            FOR v_elem IN SELECT * FROM jsonb_array_elements(p_payload) LOOP
+                IF jsonb_typeof(v_elem) <> 'string' THEN
+                    RAISE EXCEPTION 'Todos los elementos de favorites deben ser cadenas de texto (recibido %)', jsonb_typeof(v_elem);
+                END IF;
+            END LOOP;
+        END IF;
+    END IF;
+
+    -- 3. Bloqueo pesimista de fila durante la transacción para serializar escrituras concurrentes
     SELECT version, payload, shared_state.updated_at
     INTO v_current_version, v_current_payload, v_updated_at
     FROM public.shared_state
     WHERE state_key = p_key
     FOR UPDATE;
 
-    -- Si la fila no existiera (no debería ocurrir tras etapa 4A)
+    -- Si la fila no existiera (protección defensiva)
     IF NOT FOUND THEN
         RETURN QUERY SELECT FALSE, 0, NULL::JSONB, NULL::TIMESTAMPTZ;
         RETURN;
     END IF;
 
-    -- Comprobación estricta de OCC: solo actualiza si la versión coincide con la esperada
+    -- 4. Comprobación estricta de OCC: solo actualiza si la versión coincide con la esperada
     IF v_current_version = p_expected_version THEN
         UPDATE public.shared_state
         SET payload = p_payload,
@@ -64,13 +91,13 @@ BEGIN
 END;
 $$;
 
--- 2. Revocación de privilegios a roles anónimos y públicos
+-- 2. Revocación explícita a todos los roles antes de conceder privilegios mínimos
 REVOKE ALL PRIVILEGES ON FUNCTION public.update_shared_state(TEXT, JSONB, INTEGER)
-FROM anon, PUBLIC;
+FROM PUBLIC, anon, authenticated;
 
--- 3. Concesión exclusiva a usuarios autenticados (quienes además deben pasar RLS)
+-- 3. Concesión exclusiva a usuarios autenticados (quienes además deben superar RLS)
 GRANT EXECUTE ON FUNCTION public.update_shared_state(TEXT, JSONB, INTEGER)
 TO authenticated;
 
 COMMENT ON FUNCTION public.update_shared_state(TEXT, JSONB, INTEGER) IS
-'Actualización atómica de shared_state con control optimista de concurrencia (OCC) y verificación de versión.';
+'Actualización atómica de shared_state con control optimista de concurrencia (OCC) y validación de tipos JSON en servidor.';

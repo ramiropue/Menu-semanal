@@ -6,6 +6,7 @@ import { Header } from "@/components/ui/Header";
 import { BottomNav } from "@/components/ui/BottomNav";
 import { RECIPE_INGREDIENTS, IngredientCategory } from "@/data/ingredients";
 import { getShoppingList, saveShoppingList } from "@/lib/syncStore";
+import { handleMutationResult } from "@/lib/state/uiFeedback";
 
 interface AggregatedIngredient {
   name: string;
@@ -43,25 +44,54 @@ export default function ShoppingListPage() {
     };
   }, [pathname]);
 
-  const toggleCheck = (index: number) => {
+  const toggleCheck = async (index: number) => {
+    const prevList = [...ingredientsList];
     const newList = [...ingredientsList];
-    newList[index].checked = !newList[index].checked;
+    newList[index] = { ...newList[index], checked: !newList[index].checked };
     setIngredientsList(newList);
-    saveShoppingList(newList);
+
+    const result = await saveShoppingList(newList);
+    handleMutationResult(result, {
+      onRollback: () => setIngredientsList(prevList),
+      onConflict: (current) => {
+        if (Array.isArray(current)) {
+          setIngredientsList(current as AggregatedIngredient[]);
+        }
+      },
+    });
   };
 
-  const deleteIngredient = (index: number, e: React.MouseEvent) => {
+  const deleteIngredient = async (index: number, e: React.MouseEvent) => {
     e.stopPropagation();
+    const prevList = [...ingredientsList];
     const newList = [...ingredientsList];
     newList.splice(index, 1);
     setIngredientsList(newList);
-    saveShoppingList(newList);
+
+    const result = await saveShoppingList(newList);
+    handleMutationResult(result, {
+      onRollback: () => setIngredientsList(prevList),
+      onConflict: (current) => {
+        if (Array.isArray(current)) {
+          setIngredientsList(current as AggregatedIngredient[]);
+        }
+      },
+    });
   };
 
-  const clearList = () => {
+  const clearList = async () => {
     if (window.confirm("¿Estás seguro de que quieres vaciar toda la lista de la compra?")) {
+      const prevList = [...ingredientsList];
       setIngredientsList([]);
-      saveShoppingList([]);
+      const result = await saveShoppingList([]);
+      handleMutationResult(result, {
+        onRollback: () => setIngredientsList(prevList),
+        onConflict: (current) => {
+          if (Array.isArray(current)) {
+            setIngredientsList(current as AggregatedIngredient[]);
+          }
+        },
+      });
     }
   };
 
