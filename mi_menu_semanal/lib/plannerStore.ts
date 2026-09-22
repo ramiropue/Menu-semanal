@@ -1,72 +1,36 @@
-import { supabase } from "@/lib/supabase";
+import { getState, saveState, getCachedVersion } from '@/lib/state/stateAdapter';
+import type { StateSaveOptions, StateSaveResult } from '@/lib/state/types';
 
 export interface MealSlot {
-  type: "DESAYUNO" | "COMIDA" | "CENA";
+  type: 'DESAYUNO' | 'COMIDA' | 'CENA';
   recipeId?: string | null;
   recipeIds?: string[];
 }
 
-export const PLANNER_STORAGE_KEY = "planner_meals";
-export const PLANNER_EVENT_KEY = "planner_meals_updated";
+export const PLANNER_STORAGE_KEY = 'planner_meals';
+export const PLANNER_EVENT_KEY = 'planner_meals_updated';
 
 /**
- * Fetch planned meals from Supabase (shared across devices) and update local cache.
+ * Obtiene la versión conocida del planificador para control de concurrencia.
  */
-export async function getPlannedMeals(): Promise<Record<string, MealSlot[]>> {
-  let localMeals: Record<string, MealSlot[]> = {};
-
-  if (typeof window !== "undefined") {
-    const saved = localStorage.getItem(PLANNER_STORAGE_KEY);
-    if (saved) {
-      try {
-        localMeals = JSON.parse(saved);
-      } catch (e) {
-        console.error("Error parsing local planner meals", e);
-      }
-    }
-  }
-
-  try {
-    const { data, error } = await supabase
-      .from("categories")
-      .select("name")
-      .eq("id", "_PLANNER_STATE_")
-      .single();
-
-    if (!error && data?.name) {
-      const dbMeals = JSON.parse(data.name);
-      if (typeof window !== "undefined") {
-        localStorage.setItem(PLANNER_STORAGE_KEY, JSON.stringify(dbMeals));
-        window.dispatchEvent(new Event(PLANNER_EVENT_KEY));
-      }
-      return dbMeals;
-    }
-  } catch (e) {
-    console.error("Error fetching remote planner state:", e);
-  }
-
-  return localMeals;
+export function getPlannerVersion(): number {
+  return getCachedVersion('planner');
 }
 
 /**
- * Save planned meals to local cache immediately and sync to Supabase in the background.
+ * Obtiene las comidas planificadas delegando en stateAdapter (compatible V1 y V2).
  */
-export async function savePlannedMeals(meals: Record<string, MealSlot[]>) {
-  const jsonStr = JSON.stringify(meals);
+export async function getPlannedMeals(): Promise<Record<string, MealSlot[]>> {
+  const result = await getState<Record<string, MealSlot[]>>('planner', {});
+  return result.data;
+}
 
-  if (typeof window !== "undefined") {
-    localStorage.setItem(PLANNER_STORAGE_KEY, jsonStr);
-    window.dispatchEvent(new Event(PLANNER_EVENT_KEY));
-  }
-
-  try {
-    await supabase.from("categories").upsert({
-      id: "_PLANNER_STATE_",
-      name: jsonStr,
-      icon: "settings",
-      is_active: false,
-    });
-  } catch (e) {
-    console.error("Error saving remote planner state:", e);
-  }
+/**
+ * Guarda las comidas planificadas delegando en stateAdapter con validación y OCC.
+ */
+export async function savePlannedMeals(
+  meals: Record<string, MealSlot[]>,
+  options?: StateSaveOptions
+): Promise<StateSaveResult<Record<string, MealSlot[]>>> {
+  return saveState<Record<string, MealSlot[]>>('planner', meals, options);
 }
