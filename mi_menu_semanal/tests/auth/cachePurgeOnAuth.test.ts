@@ -192,7 +192,7 @@ describe('Auth Cache Purge & SignOut Hardening', () => {
   // =========================================================================
   // 5. CONTROL CLIENTE: NO MOSTRAR BOTÓN EN MODO V1
   // =========================================================================
-  it('keeps private auth controls hidden in mode V1 (when private auth flags are absent or false)', () => {
+  it('keeps private auth controls hidden in mode V1 (strictly depends on NEXT_PUBLIC_AUTH_GUARD_ENABLED)', () => {
     delete process.env.NEXT_PUBLIC_AUTH_GUARD_ENABLED;
     delete process.env.NEXT_PUBLIC_SHARED_STATE_ENABLED;
 
@@ -202,7 +202,11 @@ describe('Auth Cache Purge & SignOut Hardening', () => {
     process.env.NEXT_PUBLIC_SHARED_STATE_ENABLED = 'false';
     expect(isPrivateAuthEnabled()).toBe(false);
 
-    // Se activa únicamente cuando alguno de los flags V2 es 'true'
+    // Activación aislada de shared_state NO debe activar los controles de autenticación
+    process.env.NEXT_PUBLIC_SHARED_STATE_ENABLED = 'true';
+    expect(isPrivateAuthEnabled()).toBe(false);
+
+    // Se activa únicamente cuando NEXT_PUBLIC_AUTH_GUARD_ENABLED es estrictamente 'true'
     process.env.NEXT_PUBLIC_AUTH_GUARD_ENABLED = 'true';
     expect(isPrivateAuthEnabled()).toBe(true);
   });
