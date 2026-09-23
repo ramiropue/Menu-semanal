@@ -1,6 +1,6 @@
 -- supabase_v2_draft_rollback.sql
 -- ==============================================================================
--- PLAN DE CONTINGENCIA Y ROLLBACK SEGURO V2: APLICACIÓN PRIVADA PARA DOS
+-- PLAN DE CONTINGENCIA Y ROLLBACK SEGURO V2: UNIDAD FAMILIAR PRIVADA
 -- ==============================================================================
 -- Estado: BORRADOR DE DISEÑO PARA REVISIÓN TÉCNICA (NO EJECUTADO EN REMOTO).
 -- ==============================================================================

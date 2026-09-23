@@ -6,8 +6,9 @@ import path from 'path';
 describe('Stage 4A Additive Migration Verification', () => {
   let db: PGlite;
 
-  const userA_id = 'a0000000-0000-0000-0000-000000000001'; // Miembro A (Pareja 1)
-  const userB_id = 'b0000000-0000-0000-0000-000000000002'; // Miembro B (Pareja 2)
+  const userA_id = 'a0000000-0000-0000-0000-000000000001'; // Miembro A autorizado
+  const userB_id = 'b0000000-0000-0000-0000-000000000002'; // Miembro B autorizado
+  const userC_id = 'c0000000-0000-0000-0000-000000000003'; // Miembro C autorizado
   const userUnauth_id = '99999999-9999-9999-9999-999999999999'; // Usuario Autenticado NO Autorizado
 
   async function asSession(role: string, userId: string | null = null, email: string | null = null) {
@@ -107,8 +108,9 @@ describe('Stage 4A Additive Migration Verification', () => {
 
       -- Auth users
       INSERT INTO auth.users (id, email) VALUES
-          ('${userA_id}', 'pareja_a@example.com'),
-          ('${userB_id}', 'pareja_b@example.com'),
+          ('${userA_id}', 'miembro_a@example.com'),
+          ('${userB_id}', 'miembro_b@example.com'),
+          ('${userC_id}', 'miembro_c@example.com'),
           ('${userUnauth_id}', 'intruso@example.com');
     `);
 
@@ -116,10 +118,10 @@ describe('Stage 4A Additive Migration Verification', () => {
     const stage4aSqlPath = path.resolve(__dirname, '../../supabase_v2_stage_4a_additive.sql');
     let sqlContent = fs.readFileSync(stage4aSqlPath, 'utf8');
 
-    // Bootstrap the two authorized test members
+    // Bootstrap the authorized test members using the idempotent individual template pattern
     sqlContent = sqlContent.replace(
-      /-- INSERT INTO public\.app_members \(user_id\) VALUES[\s\S]*?-- ON CONFLICT \(user_id\) DO NOTHING;/g,
-      `INSERT INTO public.app_members (user_id) VALUES ('${userA_id}'), ('${userB_id}') ON CONFLICT (user_id) DO NOTHING;`
+      /-- INSERT INTO public\.app_members \(user_id\)[\s\S]*?-- ON CONFLICT \(user_id\) DO NOTHING;/g,
+      `INSERT INTO public.app_members (user_id) VALUES ('${userA_id}'), ('${userB_id}'), ('${userC_id}') ON CONFLICT (user_id) DO NOTHING;`
     );
 
     await db.exec(sqlContent);
@@ -176,8 +178,8 @@ describe('Stage 4A Additive Migration Verification', () => {
     const stage4aSqlPath = path.resolve(__dirname, '../../supabase_v2_stage_4a_additive.sql');
     let sqlContent = fs.readFileSync(stage4aSqlPath, 'utf8');
     sqlContent = sqlContent.replace(
-      /-- INSERT INTO public\.app_members \(user_id\) VALUES[\s\S]*?-- ON CONFLICT \(user_id\) DO NOTHING;/g,
-      `INSERT INTO public.app_members (user_id) VALUES ('${userA_id}'), ('${userB_id}') ON CONFLICT (user_id) DO NOTHING;`
+      /-- INSERT INTO public\.app_members \(user_id\)[\s\S]*?-- ON CONFLICT \(user_id\) DO NOTHING;/g,
+      `INSERT INTO public.app_members (user_id) VALUES ('${userA_id}'), ('${userB_id}'), ('${userC_id}') ON CONFLICT (user_id) DO NOTHING;`
     );
 
     await asSession('postgres'); // Run migration as superuser/postgres
@@ -273,6 +275,17 @@ describe('Stage 4A Additive Migration Verification', () => {
     }
     expect(errorB).not.toBeNull();
     expect(errorB?.code).toBe('42501');
+
+    // Member C also cannot DELETE
+    await asSession('authenticated', userC_id);
+    let errorC: { code?: string } | null = null;
+    try {
+      await db.query(`DELETE FROM public.shared_state WHERE state_key = 'shopping_list';`);
+    } catch (err) {
+      errorC = err as { code?: string };
+    }
+    expect(errorC).not.toBeNull();
+    expect(errorC?.code).toBe('42501');
   });
 
   // Test 5: V1 continues working without interruption
@@ -344,5 +357,57 @@ describe('Stage 4A Additive Migration Verification', () => {
 
     const anonSharedStatePrivs = sharedStatePrivs.filter((r) => r.grantee === 'anon' || r.grantee === 'PUBLIC');
     expect(anonSharedStatePrivs.length).toBe(0);
+  });
+
+  // Test 7: Members A, B, and C have identical permissions and can see each other's updates in shared_state and app_members
+  it('7. Miembro A, Miembro B y Miembro C tienen idénticos permisos, leen app_members y ven los cambios de shared_state', async () => {
+    // 1. Miembro A reads app_members (all 3 members) and updates planner
+    await asSession('authenticated', userA_id, 'miembro_a@example.com');
+    const membersA = await db.query<{ user_id: string }>(`SELECT user_id FROM public.app_members ORDER BY user_id;`);
+    expect(membersA.rows.length).toBe(3);
+    const memberIds = membersA.rows.map((r) => r.user_id).sort();
+    expect(memberIds).toEqual([userA_id, userB_id, userC_id].sort());
+
+    await db.query(
+      `UPDATE public.shared_state SET payload = '{"lunes":{"comida":"rec-a"}}'::jsonb, version = 2, updated_by = $1 WHERE state_key = 'planner';`,
+      [userA_id]
+    );
+
+    // 2. Miembro B sees Miembro A's update in planner, and updates shopping_list
+    await asSession('authenticated', userB_id, 'miembro_b@example.com');
+    const plannerForB = await db.query<{ payload: { lunes: { comida: string } }; version: number; updated_by: string }>(
+      `SELECT payload, version, updated_by FROM public.shared_state WHERE state_key = 'planner';`
+    );
+    expect(plannerForB.rows[0].payload.lunes.comida).toBe('rec-a');
+    expect(plannerForB.rows[0].version).toBe(2);
+    expect(plannerForB.rows[0].updated_by).toBe(userA_id);
+
+    await db.query(
+      `UPDATE public.shared_state SET payload = '[{"item":"Manzanas"}]'::jsonb, version = 2, updated_by = $1 WHERE state_key = 'shopping_list';`,
+      [userB_id]
+    );
+
+    // 3. Miembro C sees updates from both Miembro A and Miembro B, and updates freezer
+    await asSession('authenticated', userC_id, 'miembro_c@example.com');
+    const shoppingForC = await db.query<{ payload: { item: string }[]; version: number; updated_by: string }>(
+      `SELECT payload, version, updated_by FROM public.shared_state WHERE state_key = 'shopping_list';`
+    );
+    expect(shoppingForC.rows[0].payload[0].item).toBe('Manzanas');
+    expect(shoppingForC.rows[0].updated_by).toBe(userB_id);
+
+    await db.query(
+      `UPDATE public.shared_state SET payload = '[{"item":"Espinacas congeladas"}]'::jsonb, version = 2, updated_by = $1 WHERE state_key = 'freezer';`,
+      [userC_id]
+    );
+
+    const freezerCheck = await db.query<{ payload: { item: string }[]; updated_by: string }>(
+      `SELECT payload, updated_by FROM public.shared_state WHERE state_key = 'freezer';`
+    );
+    expect(freezerCheck.rows[0].payload[0].item).toBe('Espinacas congeladas');
+    expect(freezerCheck.rows[0].updated_by).toBe(userC_id);
+
+    // 4. Miembro C can also query app_members
+    const membersC = await db.query<{ user_id: string }>(`SELECT user_id FROM public.app_members ORDER BY user_id;`);
+    expect(membersC.rows.length).toBe(3);
   });
 });

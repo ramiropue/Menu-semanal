@@ -282,7 +282,7 @@ describe('Private Authentication Flow (Etapa 5A Hardening)', () => {
 
     it('allows access to authorized app_member without redirecting', async () => {
       process.env.AUTH_GUARD_ENABLED = 'true';
-      const authorizedUser = { id: 'member-1', email: 'pareja_a@example.com' };
+      const authorizedUser = { id: 'member-1', email: 'miembro_a@example.com' };
 
       mockGetUser.mockResolvedValueOnce({
         data: { user: authorizedUser },

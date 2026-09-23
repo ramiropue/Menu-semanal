@@ -1,11 +1,14 @@
 -- supabase_v2_draft_migration.sql
 -- ==============================================================================
--- BORRADOR DE MIGRACIÓN V2 (FASE 1): APLICACIÓN PRIVADA COMPARTIDA (DOS MIEMBROS)
+-- BORRADOR DE DISEÑO PARA CUTOVER FUTURO (NO APLICADO EN EL ESTADO REMOTO ACTUAL)
+-- MIGRACIÓN V2 COMPLETA: UNIDAD FAMILIAR PRIVADA COMPARTIDA
 -- ==============================================================================
 -- Estado: BORRADOR DE DISEÑO PARA REVISIÓN TÉCNICA (NO EJECUTADO EN REMOTO).
 -- ==============================================================================
 -- PRINCIPIOS DE ARQUITECTURA:
--- 1. Alcance: Aplicación 100% privada para dos personas (pareja) con permisos idénticos.
+-- 1. Alcance: Aplicación 100% privada para una unidad familiar pequeña, basada
+--    en una lista administrativa de miembros autorizados, con permisos idénticos
+--    y sin roles ni auto-invitaciones.
 -- 2. Eliminación de complejidad innecesaria: Sin households, household_members,
 --    invitaciones, roles admin/member ni catálogos públicos.
 -- 3. Autorización mínima: Tabla app_members y función segura is_app_member().
@@ -17,7 +20,7 @@
 BEGIN;
 
 -- 1. Tabla de Autorización Mínima (app_members)
--- Solo almacena los user_id de las dos cuentas autorizadas.
+-- Almacena los user_id de los miembros autorizados de la unidad familiar.
 -- Gestión exclusivamente administrativa (SQL Editor / Service Role); ningún cliente puede insertar/modificar.
 CREATE TABLE IF NOT EXISTS public.app_members (
     user_id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -140,7 +143,7 @@ CREATE POLICY "Members can view membership" ON public.app_members
     USING (public.is_app_member());
 
 -- 9. Políticas RLS: shared_state
--- Ambos miembros autorizados tienen acceso total compartido (CRUD)
+-- Todos los miembros autorizados tienen acceso total compartido (CRUD)
 DROP POLICY IF EXISTS "Shared state members access" ON public.shared_state;
 CREATE POLICY "Shared state members access" ON public.shared_state
     FOR ALL TO authenticated
@@ -148,7 +151,7 @@ CREATE POLICY "Shared state members access" ON public.shared_state
     WITH CHECK (public.is_app_member());
 
 -- 10. Políticas RLS: recipes
--- Ambos miembros autorizados tienen acceso total compartido (CRUD)
+-- Todos los miembros autorizados tienen acceso total compartido (CRUD)
 DROP POLICY IF EXISTS "Recipes members access" ON public.recipes;
 CREATE POLICY "Recipes members access" ON public.recipes
     FOR ALL TO authenticated
@@ -156,7 +159,7 @@ CREATE POLICY "Recipes members access" ON public.recipes
     WITH CHECK (public.is_app_member());
 
 -- 11. Políticas RLS: categories
--- Ambos miembros autorizados tienen acceso total compartido (CRUD)
+-- Todos los miembros autorizados tienen acceso total compartido (CRUD)
 DROP POLICY IF EXISTS "Categories members access" ON public.categories;
 CREATE POLICY "Categories members access" ON public.categories
     FOR ALL TO authenticated

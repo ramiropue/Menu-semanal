@@ -1,15 +1,23 @@
 -- tests/security/rls_matrix_verification.sql
 -- ==============================================================================
--- SUITE DE PRUEBAS DE SEGURIDAD Y AISLAMIENTO RLS: APLICACIÓN PRIVADA PARA DOS
+-- BORRADOR DE DISEÑO PARA CUTOVER FUTURO (NO APLICABLE AL ESTADO ADITIVO ACTUAL)
+-- SUITE DE VERIFICACIÓN DE MATRIZ RLS: UNIDAD FAMILIAR PRIVADA COMPARTIDA
 -- ==============================================================================
--- Evalúa las 4 personas clave en PostgreSQL / Supabase:
+-- NOTA TÉCNICA: Este archivo valida el diseño final proyectado para el cutover
+-- (cuando se revoquen los permisos públicos V1 sobre recipes y categories).
+-- En el estado actual (Stage 4A aditivo), V1 continúa deliberadamente abierta.
+--
+-- Evalúa las 5 identidades en PostgreSQL / Supabase:
 --   1. Anónimo (anon)
---   2. Usuario Autenticado NO Autorizado (intruso en auth.users)
---   3. Miembro A (Pareja 1, autorizado en app_members)
---   4. Miembro B (Pareja 2, autorizado en app_members)
+--   2. Usuario Autenticado NO Autorizado (intruso en auth.users, no en app_members)
+--   3. Miembro A (autorizado en app_members)
+--   4. Miembro B (autorizado en app_members)
+--   5. Miembro C (autorizado en app_members)
 --
 -- Evalúa operaciones SELECT, INSERT, UPDATE, DELETE sobre recipes, categories,
 -- shared_state y app_members, así como la función segura is_app_member().
+-- Demuestra que cualquier usuario incluido en app_members está autorizado con
+-- idénticos permisos y cualquier usuario excluido o anónimo está bloqueado.
 -- ==============================================================================
 
 BEGIN;
@@ -96,10 +104,21 @@ EXCEPTION WHEN OTHERS THEN
     NULL; -- Correctamente bloqueado
 END $$;
 
+-- 2.5 SELECT en app_members debe devolver 0 filas
+DO $$
+DECLARE
+    v_count INT;
+BEGIN
+    SELECT count(*) INTO v_count FROM public.app_members;
+    IF v_count <> 0 THEN
+        RAISE EXCEPTION 'TEST FAILED: Usuario no autorizado pudo leer app_members';
+    END IF;
+END $$;
+
 -- -----------------------------------------------------------------------------
--- BLOQUE 3: MIEMBRO A (PAREJA 1)
+-- BLOQUE 3: MIEMBRO A (AUTORIZADO)
 -- -----------------------------------------------------------------------------
-SELECT set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000001","email":"pareja_a@example.com","role":"authenticated"}', false);
+SELECT set_config('request.jwt.claims', '{"sub":"a0000000-0000-0000-0000-000000000001","email":"miembro_a@example.com","role":"authenticated"}', false);
 
 -- 3.1 is_app_member() debe devolver TRUE
 DO $$
@@ -109,14 +128,25 @@ BEGIN
     END IF;
 END $$;
 
--- 3.2 Miembro A puede insertar y leer recetas
+-- 3.2 Miembro A puede consultar app_members
+DO $$
+DECLARE
+    v_count INT;
+BEGIN
+    SELECT count(*) INTO v_count FROM public.app_members;
+    IF v_count = 0 THEN
+        RAISE EXCEPTION 'TEST FAILED: Miembro A no pudo leer app_members';
+    END IF;
+END $$;
+
+-- 3.3 Miembro A puede insertar y leer recetas
 DO $$
 BEGIN
     INSERT INTO public.recipes (id, title) VALUES ('rec-test-a', 'Receta de A');
     PERFORM * FROM public.recipes WHERE id = 'rec-test-a';
 END $$;
 
--- 3.3 Miembro A puede actualizar shared_state (planner)
+-- 3.4 Miembro A puede actualizar shared_state (planner)
 DO $$
 BEGIN
     UPDATE public.shared_state 
@@ -125,9 +155,9 @@ BEGIN
 END $$;
 
 -- -----------------------------------------------------------------------------
--- BLOQUE 4: MIEMBRO B (PAREJA 2)
+-- BLOQUE 4: MIEMBRO B (AUTORIZADO)
 -- -----------------------------------------------------------------------------
-SELECT set_config('request.jwt.claims', '{"sub":"b0000000-0000-0000-0000-000000000002","email":"pareja_b@example.com","role":"authenticated"}', false);
+SELECT set_config('request.jwt.claims', '{"sub":"b0000000-0000-0000-0000-000000000002","email":"miembro_b@example.com","role":"authenticated"}', false);
 
 -- 4.1 is_app_member() debe devolver TRUE
 DO $$
@@ -148,11 +178,70 @@ BEGIN
     END IF;
 END $$;
 
--- 4.3 Miembro B puede modificar y borrar la receta compartida
+-- 4.3 Miembro B puede modificar la receta y crear una nueva
 DO $$
 BEGIN
     UPDATE public.recipes SET title = 'Receta Modificada por B' WHERE id = 'rec-test-a';
+    INSERT INTO public.recipes (id, title) VALUES ('rec-test-b', 'Receta de B');
+END $$;
+
+-- 4.4 Miembro B puede actualizar shared_state (shopping_list)
+DO $$
+BEGIN
+    UPDATE public.shared_state
+    SET payload = '[{"item":"Comprar café"}]'::jsonb
+    WHERE state_key = 'shopping_list';
+END $$;
+
+-- -----------------------------------------------------------------------------
+-- BLOQUE 5: MIEMBRO C (AUTORIZADO)
+-- -----------------------------------------------------------------------------
+SELECT set_config('request.jwt.claims', '{"sub":"c0000000-0000-0000-0000-000000000003","email":"miembro_c@example.com","role":"authenticated"}', false);
+
+-- 5.1 is_app_member() debe devolver TRUE
+DO $$
+BEGIN
+    IF NOT public.is_app_member() THEN
+        RAISE EXCEPTION 'TEST FAILED: is_app_member devolvió FALSE para Miembro C';
+    END IF;
+END $$;
+
+-- 5.2 Miembro C puede consultar app_members
+DO $$
+DECLARE
+    v_count INT;
+BEGIN
+    SELECT count(*) INTO v_count FROM public.app_members;
+    IF v_count = 0 THEN
+        RAISE EXCEPTION 'TEST FAILED: Miembro C no pudo leer app_members';
+    END IF;
+END $$;
+
+-- 5.3 Miembro C ve los cambios de Miembro A y Miembro B
+DO $$
+DECLARE
+    v_title_a TEXT;
+    v_title_b TEXT;
+BEGIN
+    SELECT title INTO v_title_a FROM public.recipes WHERE id = 'rec-test-a';
+    IF v_title_a <> 'Receta Modificada por B' THEN
+        RAISE EXCEPTION 'TEST FAILED: Miembro C no ve la modificación hecha por B en receta A';
+    END IF;
+
+    SELECT title INTO v_title_b FROM public.recipes WHERE id = 'rec-test-b';
+    IF v_title_b <> 'Receta de B' THEN
+        RAISE EXCEPTION 'TEST FAILED: Miembro C no puede leer receta creada por B';
+    END IF;
+END $$;
+
+-- 5.4 Miembro C puede modificar, borrar recetas y actualizar shared_state
+DO $$
+BEGIN
     DELETE FROM public.recipes WHERE id = 'rec-test-a';
+    DELETE FROM public.recipes WHERE id = 'rec-test-b';
+    UPDATE public.shared_state
+    SET payload = '[]'::jsonb
+    WHERE state_key = 'shopping_list';
 END $$;
 
 ROLLBACK;

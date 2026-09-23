@@ -19,7 +19,8 @@
 BEGIN;
 
 -- 1. Tabla de Autorización Mínima (app_members)
--- Solo almacena los user_id de las dos cuentas autorizadas.
+-- Almacena los user_id de los miembros autorizados de la unidad familiar.
+-- Lista administrativa sin restricción de cardinalidad; todos los miembros tienen idénticos permisos.
 CREATE TABLE IF NOT EXISTS public.app_members (
     user_id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
@@ -151,14 +152,21 @@ INSERT INTO public.shared_state (state_key, payload, version, updated_at)
 VALUES ('favorites', '[]'::jsonb, 1, now())
 ON CONFLICT (state_key) DO NOTHING;
 
--- 7. Plantilla Manual para Bootstrap de los UUID de los Dos Miembros
--- INSTRUCCIONES: Una vez dadas de alta las dos cuentas privadas en Supabase Dashboard
--- (Authentication -> Users -> Invite/Add user), reemplaza estos marcadores con sus UUID
--- reales antes de ejecutar este bloque:
+-- 7. Plantilla Manual Administrativa para Alta de Miembros Autorizados
+-- NOTA OPERATIVA: La gestión de miembros se realiza EXCLUSIVAMENTE desde la
+-- administración de la base de datos (Supabase Dashboard > SQL Editor / Service Role).
+-- No existe registro público, invitaciones automáticas ni gestión desde el frontend.
 --
--- INSERT INTO public.app_members (user_id) VALUES
---     ('<UUID_MIEMBRO_A>'::uuid),
---     ('<UUID_MIEMBRO_B>'::uuid)
+-- INSTRUCCIONES:
+-- 1. Dar de alta la cuenta privada en Supabase Dashboard (Authentication -> Users -> Add user).
+-- 2. Copiar el User UID asignado por Supabase Auth.
+-- 3. Sustituir el marcador <USER_UUID> por el UUID correspondiente y ejecutar la sentencia.
+--
+-- Esta plantilla es idempotente: añade el miembro individual sin modificar, reemplazar
+-- ni borrar los miembros preexistentes en la unidad familiar.
+--
+-- INSERT INTO public.app_members (user_id)
+-- VALUES ('<USER_UUID>'::uuid)
 -- ON CONFLICT (user_id) DO NOTHING;
 
 COMMIT;

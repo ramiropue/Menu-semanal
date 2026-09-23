@@ -7,6 +7,8 @@ describe('Real PostgreSQL Verification of supabase_v2_atomic_update.sql (PGlite)
   let db: PGlite;
 
   const memberA_id = 'a0000000-0000-0000-0000-000000000001';
+  const memberB_id = 'b0000000-0000-0000-0000-000000000002';
+  const memberC_id = 'c0000000-0000-0000-0000-000000000003';
   const nonMember_id = '99999999-9999-9999-9999-999999999999';
 
   async function asSession(role: string, userId: string | null = null) {
@@ -82,11 +84,13 @@ describe('Real PostgreSQL Verification of supabase_v2_atomic_update.sql (PGlite)
     const stage4aSql = fs.readFileSync(stage4aPath, 'utf-8');
     await db.exec(stage4aSql);
 
-    // Bootstrap Member A and non-member
+    // Bootstrap Member A, B, C and non-member
     await db.exec(`
-      INSERT INTO auth.users (id, email) VALUES ('${memberA_id}', 'pareja_a@example.com') ON CONFLICT DO NOTHING;
+      INSERT INTO auth.users (id, email) VALUES ('${memberA_id}', 'miembro_a@example.com') ON CONFLICT DO NOTHING;
+      INSERT INTO auth.users (id, email) VALUES ('${memberB_id}', 'miembro_b@example.com') ON CONFLICT DO NOTHING;
+      INSERT INTO auth.users (id, email) VALUES ('${memberC_id}', 'miembro_c@example.com') ON CONFLICT DO NOTHING;
       INSERT INTO auth.users (id, email) VALUES ('${nonMember_id}', 'intruso@example.com') ON CONFLICT DO NOTHING;
-      INSERT INTO public.app_members (user_id) VALUES ('${memberA_id}') ON CONFLICT DO NOTHING;
+      INSERT INTO public.app_members (user_id) VALUES ('${memberA_id}'), ('${memberB_id}'), ('${memberC_id}') ON CONFLICT DO NOTHING;
     `);
 
     // 3. Ejecutar el script exacto de actualización atómica (sin duplicarlo en el test)
@@ -228,5 +232,39 @@ describe('Real PostgreSQL Verification of supabase_v2_atomic_update.sql (PGlite)
     );
     expect(validFavs.rows[0].success).toBe(true);
     expect(validFavs.rows[0].current_version).toBe(2);
+  });
+
+  it('allows Member A, Member B, and Member C to sequentially update shared_state with OCC and identical permissions', async () => {
+    // 1. Member A updates planner from v1 to v2
+    await asSession('authenticated', memberA_id);
+    const resA = await db.query<{ success: boolean; current_version: number; updated_at: string }>(
+      `SELECT * FROM public.update_shared_state('planner', '{"lunes":{"comida":"rec-a"}}'::jsonb, 1);`
+    );
+    expect(resA.rows[0].success).toBe(true);
+    expect(resA.rows[0].current_version).toBe(2);
+
+    // 2. Member B reads planner and updates it from v2 to v3
+    await asSession('authenticated', memberB_id);
+    const resB = await db.query<{ success: boolean; current_version: number }>(
+      `SELECT * FROM public.update_shared_state('planner', '{"lunes":{"comida":"rec-b"}}'::jsonb, 2);`
+    );
+    expect(resB.rows[0].success).toBe(true);
+    expect(resB.rows[0].current_version).toBe(3);
+
+    // 3. Member C reads planner and updates it from v3 to v4
+    await asSession('authenticated', memberC_id);
+    const resC = await db.query<{ success: boolean; current_version: number }>(
+      `SELECT * FROM public.update_shared_state('planner', '{"lunes":{"comida":"rec-c"}}'::jsonb, 3);`
+    );
+    expect(resC.rows[0].success).toBe(true);
+    expect(resC.rows[0].current_version).toBe(4);
+
+    // 4. Verify in shared_state table that version is 4 and updated_by is memberC_id
+    const finalCheck = await db.query<{ version: number; updated_by: string; payload: { lunes: { comida: string } } }>(
+      `SELECT version, updated_by, payload FROM public.shared_state WHERE state_key = 'planner';`
+    );
+    expect(finalCheck.rows[0].version).toBe(4);
+    expect(finalCheck.rows[0].updated_by).toBe(memberC_id);
+    expect(finalCheck.rows[0].payload.lunes.comida).toBe('rec-c');
   });
 });

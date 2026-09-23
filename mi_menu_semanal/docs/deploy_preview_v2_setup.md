@@ -36,7 +36,7 @@ NEXT_PUBLIC_SHARED_STATE_ENABLED=false
 
 ### B. Contexto: Vistas Previas de Despliegue (*Deploy Previews*)
 
-Habilita el flujo privado completo para las dos cuentas autorizadas en las ramas de preview (ej. `v2/phase-1-household-auth`):
+Habilita el flujo privado completo para los miembros autorizados de la unidad familiar en las ramas de preview (ej. `v2/phase-1-household-auth`):
 
 ```text
 AUTH_GUARD_ENABLED=true

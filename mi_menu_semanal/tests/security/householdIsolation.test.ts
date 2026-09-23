@@ -1,7 +1,11 @@
 /**
  * tests/security/householdIsolation.test.ts
  *
- * Contract tests for V2 Household Data Isolation and RLS Policy Logic.
+ * BORRADOR DE DISEÑO / EMULADOR DE PRUEBAS UNITARIAS DE DISEÑO FUTURO.
+ * (No representa el estado remoto actual donde V1 sigue abierto; emula la lógica
+ * proyectada de aislamiento para cutover futuro).
+ *
+ * Contract tests for Future V2 Household Data Isolation and RLS Policy Logic.
  * Verifies that:
  * 1. Anonymous users can only read the shared catalog, never private household data.
  * 2. Anonymous users cannot perform any mutations (INSERT/UPDATE/DELETE).
@@ -90,7 +94,7 @@ function canAccessHouseholdState(auth: AuthContext, stateHouseholdId: string): b
 // ─── Test Suite ─────────────────────────────────────────────────────────────
 
 describe('V2 Household Isolation & RLS Security Matrix', () => {
-  // Fixtures: Two separate households
+  // Fixtures: Separate isolated households
   const HOUSEHOLD_A = 'household-aaaa-1111';
   const HOUSEHOLD_B = 'household-bbbb-2222';
 
