@@ -4,12 +4,12 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "generate:manifest": "tsx scripts/generate_recipe_manifest.ts",
-    "prebuild": "tsx scripts/generate_recipe_manifest.ts",
+    "generate:manifest": "node scripts/generate_recipe_manifest.mjs",
+    "prebuild": "node scripts/generate_recipe_manifest.mjs",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "pretest": "tsx scripts/generate_recipe_manifest.ts",
+    "pretest": "node scripts/generate_recipe_manifest.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "db:seed": "tsx scripts/seed.ts"
