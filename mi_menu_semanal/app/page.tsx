@@ -2,21 +2,24 @@ import { Header } from "@/components/ui/Header";
 import { BottomNav } from "@/components/ui/BottomNav";
 import { FAB } from "@/components/ui/FAB";
 import { HomeContent } from "@/components/recipes/HomeContent";
-import { supabase } from "@/lib/supabase";
-import { Category, Recipe } from "@/data/mockData";
-import { importMarkdownToSupabase } from "@/lib/markdownRecipes";
+import { createClient } from "@/lib/supabase/server";
+import { Category } from "@/data/mockData";
+import { getCombinedRecipes } from "@/lib/recipes/recipeService";
 
 export const dynamic = 'force-dynamic';
 
 export default async function Home() {
-  // Auto-import markdown recipes to Supabase (idempotent — skips existing)
-  await importMarkdownToSupabase();
+  const supabase = await createClient();
 
-  const { data: dbCategories } = await supabase
+  const { data: dbCategories, error: catError } = await supabase
     .from("categories")
     .select("*")
     .not("id", "in", '("_PLANNER_STATE_","_FREEZER_STATE_","_SHOPPING_LIST_STATE_","_FAVORITES_STATE_")')
     .order("sort_order");
+
+  if (catError) {
+    console.warn("[Home] Categories fetch error:", catError.message);
+  }
   
   const categories: Category[] = [
     { id: 'todas', name: 'Todas', icon: 'grid_view' },
@@ -29,25 +32,8 @@ export default async function Home() {
     }))
   ];
 
-  // Fetch ALL recipes from Supabase (markdown recipes are now included)
-  const { data: recipesData } = await supabase.from("recipes").select("*");
-
-  const recipes: Recipe[] = (recipesData || []).map((rec) => ({
-    id: rec.id,
-    title: rec.title,
-    image: rec.image,
-    tags: rec.tags || [],
-    type: rec.type,
-    time: rec.time,
-    rating: rec.rating ? Number(rec.rating) : undefined,
-    isWeeklyFavorite: !!rec.is_weekly_favorite,
-    is_favorite: !!rec.is_favorite,
-    servings: rec.servings,
-    calories: rec.calories,
-    description: rec.description,
-    category_id: rec.category_id,
-    category_ids: rec.category_ids || (rec.category_id ? [rec.category_id] : []),
-  }));
+  // Pure read-only combined catalog using authenticated server client (zero DB writes)
+  const recipes = await getCombinedRecipes(supabase);
 
   return (
     <div className="h-full w-full overflow-y-auto overflow-x-hidden flex flex-col bg-background relative font-plus-jakarta text-[#2A4B4C]">

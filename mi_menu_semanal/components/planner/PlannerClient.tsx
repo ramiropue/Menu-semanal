@@ -10,6 +10,7 @@ import { Header } from "@/components/ui/Header";
 import { RECIPE_INGREDIENTS, Ingredient } from "@/data/ingredients";
 import { getPlannedMeals, savePlannedMeals, PLANNER_EVENT_KEY, MealSlot } from "@/lib/plannerStore";
 import { getShoppingList, saveShoppingList } from "@/lib/syncStore";
+import { handleMutationResult, showToast } from "@/lib/state/uiFeedback";
 
 interface Recipe {
   id: string;
@@ -179,13 +180,15 @@ export function PlannerClient({ recipes }: { recipes: Recipe[] }) {
     });
 
     if (addedCount === 0) {
-      alert("No hay recetas asignadas con ingredientes en la vista actual.");
+      showToast("No hay recetas asignadas con ingredientes en la vista actual.", "info");
       return;
     }
 
     const newList = Array.from(map.values());
-    await saveShoppingList(newList);
-    alert(`¡Se han añadido los ingredientes a tu Lista de la Compra!`);
+    const result = await saveShoppingList(newList);
+    handleMutationResult(result, {
+      successMessage: "¡Se han añadido los ingredientes a tu Lista de la Compra!",
+    });
   };
   
   // Logic to generate the week's days based on weekOffset
@@ -304,7 +307,7 @@ export function PlannerClient({ recipes }: { recipes: Recipe[] }) {
     setIsModalOpen(true);
   };
 
-  const assignRecipe = (recipeId: string) => {
+  const assignRecipe = async (recipeId: string) => {
     if (!selectedSlot) return;
     const { date, type, isReplacement, replaceIndex } = selectedSlot;
     
@@ -325,17 +328,26 @@ export function PlannerClient({ recipes }: { recipes: Recipe[] }) {
       }
     }
     
+    const prevMeals = plannedMeals;
     const updatedMeals = {
       ...plannedMeals,
       [date]: newMeals
     };
     
     setPlannedMeals(updatedMeals);
-    savePlannedMeals(updatedMeals);
     setIsModalOpen(false);
+    const result = await savePlannedMeals(updatedMeals);
+    handleMutationResult(result, {
+      onRollback: () => setPlannedMeals(prevMeals),
+      onConflict: (current) => {
+        if (current && typeof current === 'object' && !Array.isArray(current)) {
+          setPlannedMeals(current as Record<string, MealSlot[]>);
+        }
+      },
+    });
   };
 
-  const removeRecipe = (date: string, type: string, indexToRemove: number) => {
+  const removeRecipe = async (date: string, type: string, indexToRemove: number) => {
     const meals = getNormalizedMealsForDate(date);
     const newMeals = [...meals];
     const mealIndex = newMeals.findIndex(m => m.type === type);
@@ -345,13 +357,22 @@ export function PlannerClient({ recipes }: { recipes: Recipe[] }) {
       newRecipeIds.splice(indexToRemove, 1);
       newMeals[mealIndex] = { ...newMeals[mealIndex], recipeIds: newRecipeIds };
       
+      const prevMeals = plannedMeals;
       const updatedMeals = {
         ...plannedMeals,
         [date]: newMeals
       };
       
       setPlannedMeals(updatedMeals);
-      savePlannedMeals(updatedMeals);
+      const result = await savePlannedMeals(updatedMeals);
+      handleMutationResult(result, {
+        onRollback: () => setPlannedMeals(prevMeals),
+        onConflict: (current) => {
+          if (current && typeof current === 'object' && !Array.isArray(current)) {
+            setPlannedMeals(current as Record<string, MealSlot[]>);
+          }
+        },
+      });
     }
   };
 

@@ -1,6 +1,7 @@
 import fs from "fs";
 import path from "path";
-import { supabase } from "@/lib/supabase";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import manifestRecipes from "@/data/markdownRecipesManifest.json";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -29,7 +30,7 @@ export type MarkdownRecipe = {
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 /** Convert a filename / title into a URL-safe slug */
-function slugify(text: string): string {
+export function slugify(text: string): string {
   return text
     .toLowerCase()
     .normalize("NFD")
@@ -39,7 +40,7 @@ function slugify(text: string): string {
 }
 
 /** Recursively find all .md files under a directory */
-function findMarkdownFiles(dir: string): string[] {
+export function findMarkdownFiles(dir: string): string[] {
   const results: string[] = [];
 
   if (!fs.existsSync(dir)) return results;
@@ -59,7 +60,7 @@ function findMarkdownFiles(dir: string): string[] {
 
 // ─── Parser ───────────────────────────────────────────────────────────────────
 
-function parseMarkdownRecipe(filePath: string, content: string): MarkdownRecipe {
+export function parseMarkdownRecipe(filePath: string, content: string): MarkdownRecipe {
   const lines = content.split("\n");
 
   let title = "";
@@ -203,18 +204,28 @@ function parseMarkdownRecipe(filePath: string, content: string): MarkdownRecipe 
 
 const RECETAS_NOTAS_DIR = path.resolve(process.cwd(), "..", "RecetasNOTAS");
 
-/** Get all markdown recipes from RecetasNOTAS/ */
-export function getMarkdownRecipes(): MarkdownRecipe[] {
-  const files = findMarkdownFiles(RECETAS_NOTAS_DIR);
-  return files.map((filePath) => {
-    const content = fs.readFileSync(filePath, "utf-8");
-    return parseMarkdownRecipe(filePath, content);
-  });
+/**
+ * Get all markdown recipes.
+ * - In local dev (when RecetasNOTAS directory exists and contains .md files), reads live from disk for instant hot reload.
+ * - In serverless runtimes (Netlify, Lambda) where external files are not available at runtime,
+ *   returns the statically bundled manifest generated at build time.
+ */
+export function getMarkdownRecipes(options?: { forceManifest?: boolean }): MarkdownRecipe[] {
+  if (!options?.forceManifest && fs.existsSync(RECETAS_NOTAS_DIR)) {
+    const files = findMarkdownFiles(RECETAS_NOTAS_DIR);
+    if (files.length > 0) {
+      return files.map((filePath) => {
+        const content = fs.readFileSync(filePath, "utf-8");
+        return parseMarkdownRecipe(filePath, content);
+      });
+    }
+  }
+  return manifestRecipes as MarkdownRecipe[];
 }
 
 /** Get a single markdown recipe by its ID (md-<slug>) */
-export function getMarkdownRecipeById(id: string): MarkdownRecipe | null {
-  const recipes = getMarkdownRecipes();
+export function getMarkdownRecipeById(id: string, options?: { forceManifest?: boolean }): MarkdownRecipe | null {
+  const recipes = getMarkdownRecipes(options);
   return recipes.find((r) => r.id === id) || null;
 }
 
@@ -222,11 +233,19 @@ export function getMarkdownRecipeById(id: string): MarkdownRecipe | null {
 const MD_PLACEHOLDER_IMAGE = "https://images.unsplash.com/photo-1495521821757-a1efb6729352?auto=format&fit=crop&q=80&w=800";
 
 /**
- * Import markdown recipes into Supabase (INSERT ... ON CONFLICT DO NOTHING).
- * Once imported, they become regular editable recipes.
+ * Administrative utility: Import markdown recipes into Supabase (INSERT ... ON CONFLICT DO NOTHING).
+ * Once imported, they become regular editable recipes in the database.
  * Existing recipes with the same ID are NOT overwritten (preserves user edits).
+ *
+ * IMPORTANT ARCHITECTURAL CONSTRAINT:
+ * This function performs database writes and MUST NOT be called in HTTP GET request handlers
+ * or during page renders. It is reserved for explicit administrative scripts / seed tasks.
  */
-export async function importMarkdownToSupabase(): Promise<void> {
+export async function importMarkdownToSupabase(client: SupabaseClient): Promise<void> {
+  if (!client) {
+    throw new Error("[markdownRecipes] SupabaseClient is required for importMarkdownToSupabase");
+  }
+
   const mdRecipes = getMarkdownRecipes();
   if (mdRecipes.length === 0) return;
 
@@ -248,7 +267,7 @@ export async function importMarkdownToSupabase(): Promise<void> {
     };
 
     // Check if already exists
-    const { data: existing } = await supabase
+    const { data: existing } = await client
       .from("recipes")
       .select("id")
       .eq("id", md.id)
@@ -259,7 +278,7 @@ export async function importMarkdownToSupabase(): Promise<void> {
       continue;
     }
 
-    const { error } = await supabase.from("recipes").insert(row);
+    const { error } = await client.from("recipes").insert(row);
     if (error) {
       console.error(`Error importing markdown recipe "${md.title}":`, error.message);
     } else {

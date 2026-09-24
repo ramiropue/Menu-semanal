@@ -5,6 +5,19 @@ export type Category = {
   isActive?: boolean;
 };
 
+export type RecipeIngredient = {
+  cantidad: string;
+  ingrediente: string;
+};
+
+export type RecipeStep = {
+  step: number;
+  description: string;
+  title?: string;
+  image_url?: string;
+  text?: string;
+};
+
 export type Recipe = {
   id: string;
   title: string;
@@ -21,8 +34,11 @@ export type Recipe = {
   category_id?: string;
   category_ids?: string[];
   source?: "database" | "mariadb" | "supabase" | "markdown";
+  ingredients?: RecipeIngredient[];
+  steps?: RecipeStep[];
+  chef_tips?: string;
   markdownContent?: {
-    ingredients: { cantidad: string; ingrediente: string }[];
+    ingredients: RecipeIngredient[];
     steps: { step: number; description: string }[];
     links: { text: string; url: string }[];
     sourceUrl: string | null;

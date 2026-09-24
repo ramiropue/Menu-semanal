@@ -40,3 +40,12 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# local prompt docs
+Prompt maestro.md
+
+# backups (never commit data dumps or exported assets)
+backups/
+/backups/
+*.backup
+*.dump

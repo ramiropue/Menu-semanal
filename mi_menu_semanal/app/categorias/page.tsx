@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { Header } from "@/components/ui/Header";
 import { BottomNav } from "@/components/ui/BottomNav";
-import { supabase } from "@/lib/supabase";
+import { createClient } from "@/lib/supabase/client";
 import Link from "next/link";
 import {
   DndContext,
@@ -38,7 +38,13 @@ const PREDEFINED_ICONS = [
   "cookie", "fastfood", "tapas", "local_pizza", "kebab_dining", "soup_kitchen"
 ];
 
-function SortableCategoryItem({ category, setEditingIconId, handleDelete }: any) {
+interface SortableCategoryItemProps {
+  category: DbCategory;
+  setEditingIconId: (id: string) => void;
+  handleDelete: (id: string, name: string) => void;
+}
+
+function SortableCategoryItem({ category, setEditingIconId, handleDelete }: SortableCategoryItemProps) {
   const {
     attributes,
     listeners,
@@ -52,7 +58,7 @@ function SortableCategoryItem({ category, setEditingIconId, handleDelete }: any)
     transform: CSS.Transform.toString(transform),
     transition,
     zIndex: isDragging ? 50 : 'auto',
-    position: 'relative' as any,
+    position: 'relative' as const,
   };
 
   return (
@@ -100,6 +106,7 @@ function SortableCategoryItem({ category, setEditingIconId, handleDelete }: any)
 }
 
 export default function CategoriasPage() {
+  const supabase = createClient();
   const [categories, setCategories] = useState<DbCategory[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   
@@ -117,24 +124,29 @@ export default function CategoriasPage() {
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
 
-  const loadCategories = async () => {
-    setIsLoading(true);
-    const { data, error } = await supabase
-      .from('categories')
-      .select('*')
-      .not('id', 'in', '("_PLANNER_STATE_","_FREEZER_STATE_","_SHOPPING_LIST_STATE_","_FAVORITES_STATE_")')
-      .order('sort_order');
-      
-    if (error) {
-      console.error("Error loading categories:", error);
-    } else {
-      setCategories(data || []);
-    }
-    setIsLoading(false);
-  };
-
   useEffect(() => {
-    loadCategories();
+    let isMounted = true;
+    const fetchCategories = async () => {
+      const { data, error } = await supabase
+        .from('categories')
+        .select('*')
+        .not('id', 'in', '("_PLANNER_STATE_","_FREEZER_STATE_","_SHOPPING_LIST_STATE_","_FAVORITES_STATE_")')
+        .order('sort_order');
+
+      if (!isMounted) return;
+      if (error) {
+        console.error("Error loading categories:", error);
+      } else {
+        setCategories(data || []);
+      }
+      setIsLoading(false);
+    };
+
+    fetchCategories();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   const handleDragEnd = async (event: DragEndEvent) => {

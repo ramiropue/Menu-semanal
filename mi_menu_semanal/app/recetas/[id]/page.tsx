@@ -1,6 +1,8 @@
 import { Header } from "@/components/ui/Header";
 import { BottomNav } from "@/components/ui/BottomNav";
-import { supabase } from "@/lib/supabase";
+import { getCombinedRecipeById } from "@/lib/recipes/recipeService";
+import { RecipeIngredient, RecipeStep } from "@/data/mockData";
+import { createClient } from "@/lib/supabase/server";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { RecipeActions } from "@/components/recipes/RecipeActions";
@@ -19,14 +21,11 @@ export default async function RecipeDetailPage({
   const resolvedSearchParams = searchParams ? await searchParams : {};
   const backUrl = resolvedSearchParams.from === 'planear' ? '/planear' : '/';
   
-  // Fetch recipe data
-  const { data: recipe, error } = await supabase
-    .from("recipes")
-    .select(`*, categories(name, icon)`)
-    .eq("id", resolvedParams.id)
-    .single();
+  // Fetch recipe data with authenticated server client & Markdown fallback
+  const supabase = await createClient();
+  const recipe = await getCombinedRecipeById(supabase, resolvedParams.id);
 
-  if (error || !recipe) {
+  if (!recipe) {
     return notFound();
   }
 
@@ -47,7 +46,7 @@ export default async function RecipeDetailPage({
       chefTipsText = parts[0].trim();
       sourceUrl = parts[1].trim();
     }
-  } catch(e) {
+  } catch {
     // Si falla el parseo, mantenemos chefTipsText como texto plano
   }
 
@@ -147,7 +146,7 @@ export default async function RecipeDetailPage({
 
               <ul className="flex flex-col gap-1.5">
                 {ingredients.length > 0 ? (
-                  ingredients.map((ing: any, i: number) => (
+                  ingredients.map((ing: RecipeIngredient, i: number) => (
                     <li 
                       key={i} 
                       className="flex items-center justify-between py-2.5 md:py-3 border-b border-surface-variant/30 group hover:bg-surface-container-low/50 transition-colors rounded-xl px-2"
@@ -185,7 +184,7 @@ export default async function RecipeDetailPage({
 
               <div className="space-y-10 md:space-y-12">
                 {steps.length > 0 ? (
-                  steps.map((step: any, i: number) => (
+                  steps.map((step: RecipeStep, i: number) => (
                     <div key={i} className="flex gap-5 md:gap-8 group">
                       <div className="flex-shrink-0">
                         <div className="w-12 h-12 md:w-16 md:h-16 rounded-full bg-secondary text-white flex items-center justify-center text-xl md:text-3xl font-black italic shadow-lg group-hover:rotate-12 transition-transform">
@@ -218,8 +217,8 @@ export default async function RecipeDetailPage({
               </div>
             </div>
 
-            {/* BOTONES DE ACCIÓN (Modificar / Eliminar) */}
-            <RecipeActions recipeId={recipe.id} />
+            {/* BOTONES DE ACCIÓN (Modificar / Eliminar para Supabase, aviso para Markdown) */}
+            <RecipeActions recipeId={recipe.id} source={recipe.source} />
 
             {/* TARJETA DE VÍDEO ORIGINAL */}
             {sourceUrl && (

@@ -4,32 +4,45 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "generate:manifest": "node scripts/generate_recipe_manifest.mjs",
+    "recipes:validate": "node scripts/recipes_validate.mjs",
+    "recipes:publish": "node scripts/recipes_publish.mjs",
+    "recipes:watch": "node scripts/recipes_watch.mjs",
+    "prebuild": "node scripts/generate_recipe_manifest.mjs",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "pretest": "node scripts/generate_recipe_manifest.mjs",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "db:seed": "tsx scripts/seed.ts"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
     "@google/genai": "^2.7.0",
+    "@supabase/ssr": "^0.12.7",
     "@supabase/supabase-js": "^2.116.0",
     "cheerio": "^1.2.0",
     "html-to-image": "^1.11.13",
     "html2canvas": "^1.4.1",
     "jspdf": "^4.2.1",
-    "next": "16.2.4",
+    "next": "16.3.3",
     "react": "19.2.4",
     "react-dom": "19.2.4"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.8",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
-    "eslint-config-next": "16.2.4",
+    "eslint-config-next": "16.3.3",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "tsx": "^4.23.13",
+    "typescript": "^5",
+    "vitest": "^3.2.7"
   }
 }

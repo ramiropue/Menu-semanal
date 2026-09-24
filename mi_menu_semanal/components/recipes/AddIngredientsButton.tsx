@@ -2,6 +2,7 @@
 
 import { Ingredient } from "@/data/ingredients";
 import { getShoppingList, saveShoppingList } from "@/lib/syncStore";
+import { handleMutationResult } from "@/lib/state/uiFeedback";
 
 interface Props {
   ingredients: any[];
@@ -55,8 +56,10 @@ export function AddIngredientsButton({ ingredients }: Props) {
     });
 
     const newList = Array.from(map.values());
-    await saveShoppingList(newList);
-    alert(`¡Se han añadido los ingredientes a tu Lista de la Compra!`);
+    const result = await saveShoppingList(newList);
+    handleMutationResult(result, {
+      successMessage: "¡Se han añadido los ingredientes a tu Lista de la Compra!",
+    });
   };
 
   return (
