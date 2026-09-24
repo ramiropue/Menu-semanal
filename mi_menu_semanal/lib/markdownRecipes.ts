@@ -233,9 +233,13 @@ export function getMarkdownRecipeById(id: string, options?: { forceManifest?: bo
 const MD_PLACEHOLDER_IMAGE = "https://images.unsplash.com/photo-1495521821757-a1efb6729352?auto=format&fit=crop&q=80&w=800";
 
 /**
- * Import markdown recipes into Supabase (INSERT ... ON CONFLICT DO NOTHING).
- * Once imported, they become regular editable recipes.
+ * Administrative utility: Import markdown recipes into Supabase (INSERT ... ON CONFLICT DO NOTHING).
+ * Once imported, they become regular editable recipes in the database.
  * Existing recipes with the same ID are NOT overwritten (preserves user edits).
+ *
+ * IMPORTANT ARCHITECTURAL CONSTRAINT:
+ * This function performs database writes and MUST NOT be called in HTTP GET request handlers
+ * or during page renders. It is reserved for explicit administrative scripts / seed tasks.
  */
 export async function importMarkdownToSupabase(): Promise<void> {
   const mdRecipes = getMarkdownRecipes();
