@@ -1,6 +1,6 @@
 import fs from "fs";
 import path from "path";
-import { supabase } from "@/lib/supabase";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import manifestRecipes from "@/data/markdownRecipesManifest.json";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -241,7 +241,11 @@ const MD_PLACEHOLDER_IMAGE = "https://images.unsplash.com/photo-1495521821757-a1
  * This function performs database writes and MUST NOT be called in HTTP GET request handlers
  * or during page renders. It is reserved for explicit administrative scripts / seed tasks.
  */
-export async function importMarkdownToSupabase(): Promise<void> {
+export async function importMarkdownToSupabase(client: SupabaseClient): Promise<void> {
+  if (!client) {
+    throw new Error("[markdownRecipes] SupabaseClient is required for importMarkdownToSupabase");
+  }
+
   const mdRecipes = getMarkdownRecipes();
   if (mdRecipes.length === 0) return;
 
@@ -263,7 +267,7 @@ export async function importMarkdownToSupabase(): Promise<void> {
     };
 
     // Check if already exists
-    const { data: existing } = await supabase
+    const { data: existing } = await client
       .from("recipes")
       .select("id")
       .eq("id", md.id)
@@ -274,7 +278,7 @@ export async function importMarkdownToSupabase(): Promise<void> {
       continue;
     }
 
-    const { error } = await supabase.from("recipes").insert(row);
+    const { error } = await client.from("recipes").insert(row);
     if (error) {
       console.error(`Error importing markdown recipe "${md.title}":`, error.message);
     } else {

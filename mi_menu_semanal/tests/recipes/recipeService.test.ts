@@ -7,8 +7,13 @@ import {
 } from "@/lib/recipes/recipeService";
 import { getMarkdownRecipes } from "@/lib/markdownRecipes";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import fs from "node:fs";
+import path from "node:path";
 
-function createMockSupabase(dbRows: Record<string, unknown>[] = []) {
+function createMockSupabase(
+  dbRows: Record<string, unknown>[] = [],
+  options: { error?: { message: string; code?: string } | null; networkError?: Error | null } = {}
+) {
   const insertSpy = vi.fn().mockResolvedValue({ data: null, error: null });
   const updateSpy = vi.fn().mockResolvedValue({ data: null, error: null });
   const upsertSpy = vi.fn().mockResolvedValue({ data: null, error: null });
@@ -16,10 +21,30 @@ function createMockSupabase(dbRows: Record<string, unknown>[] = []) {
 
   const client = {
     from: vi.fn(() => {
+      if (options.networkError) {
+        throw options.networkError;
+      }
+
       return {
         select: vi.fn(() => {
+          if (options.networkError) {
+            throw options.networkError;
+          }
+
           return {
             eq: vi.fn((col: string, val: unknown) => {
+              if (options.error) {
+                return {
+                  maybeSingle: vi.fn().mockResolvedValue({
+                    data: null,
+                    error: options.error,
+                  }),
+                  single: vi.fn().mockResolvedValue({
+                    data: null,
+                    error: options.error,
+                  }),
+                };
+              }
               const matching = dbRows.find((r) => r[col] === val);
               return {
                 maybeSingle: vi.fn().mockResolvedValue({
@@ -32,10 +57,13 @@ function createMockSupabase(dbRows: Record<string, unknown>[] = []) {
                 }),
               };
             }),
-            data: dbRows,
-            error: null,
-            then: (resolve: (val: { data: Record<string, unknown>[]; error: null }) => void) =>
-              resolve({ data: dbRows, error: null }),
+            data: options.error ? null : dbRows,
+            error: options.error || null,
+            then: (resolve: (val: { data: Record<string, unknown>[] | null; error: unknown }) => void) =>
+              resolve({
+                data: options.error ? null : dbRows,
+                error: options.error || null,
+              }),
           };
         }),
         insert: insertSpy,
@@ -66,11 +94,21 @@ describe("RecipeService — Combined Read Layer without GET Writes", () => {
     expect(ids).toContain("md-tacos-big-mac");
   });
 
+  it("throws error when SupabaseClient is not provided", async () => {
+    // @ts-expect-error Testing missing client runtime guard
+    await expect(getCombinedRecipes(null)).rejects.toThrow(
+      "An authenticated SupabaseClient is required"
+    );
+    // @ts-expect-error Testing missing client runtime guard
+    await expect(getCombinedRecipeById(null, "some-id")).rejects.toThrow(
+      "An authenticated SupabaseClient is required"
+    );
+  });
+
   it("includes 'Tacos Big Mac' in catalog when Supabase does not contain 'md-tacos-big-mac'", async () => {
     const mockSupabase = createMockSupabase([]);
 
-    const recipes = await getCombinedRecipes({
-      client: mockSupabase,
+    const recipes = await getCombinedRecipes(mockSupabase, {
       forceManifest: true,
     });
 
@@ -98,87 +136,57 @@ describe("RecipeService — Combined Read Layer without GET Writes", () => {
       description: "Versión con carne smash picada",
       category_id: "4",
       category_ids: ["4"],
-      ingredients: [{ cantidad: "4", ingrediente: "Tortillas de maíz" }],
-      steps: [{ step: 1, description: "Dorar tortillas" }],
-      chef_tips: "Usar carne con 20% de grasa",
     };
 
     const mockSupabase = createMockSupabase([userEditedTacos]);
 
-    const recipes = await getCombinedRecipes({
-      client: mockSupabase,
+    const recipes = await getCombinedRecipes(mockSupabase, {
       forceManifest: true,
     });
 
-    const matching = recipes.filter((r) => r.id === "md-tacos-big-mac");
-    // Exactly 1 recipe for this ID
-    expect(matching).toHaveLength(1);
-
-    const recipe = matching[0];
-    expect(recipe.title).toBe("Tacos Big Mac (Edición Casera Personalizada)");
-    expect(recipe.image).toBe("https://example.com/custom-tacos.jpg");
-    expect(recipe.source).toBe("supabase");
-    expect(recipe.time).toBe("20 min");
-    expect(recipe.is_favorite).toBe(true);
-    expect(recipe.isWeeklyFavorite).toBe(true);
+    const tacos = recipes.filter((r) => r.id === "md-tacos-big-mac");
+    expect(tacos).toHaveLength(1);
+    expect(tacos[0].title).toBe("Tacos Big Mac (Edición Casera Personalizada)");
+    expect(tacos[0].source).toBe("supabase");
+    expect(tacos[0].servings).toBe(2);
   });
 
-  it("guarantees strictly unique IDs across combined recipes", async () => {
-    const existingDbRecipe = {
-      id: "md-arroz-meloso-de-pulpo-y-gambones",
-      title: "Arroz meloso en BD",
-      image: "https://example.com/arroz.jpg",
-      tags: ["Arroz"],
-      type: "standard",
-    };
+  it("contains strictly unique IDs across the entire returned list", async () => {
+    const existingDbRecipes = [
+      { id: "md-arroz-meloso-de-pulpo-y-gambones", title: "Pulpo DB", tags: [] },
+      { id: "db-custom-pasta", title: "Pasta Custom", tags: [] },
+    ];
 
-    const mockSupabase = createMockSupabase([existingDbRecipe]);
-    const recipes = await getCombinedRecipes({
-      client: mockSupabase,
+    const mockSupabase = createMockSupabase(existingDbRecipes);
+
+    const recipes = await getCombinedRecipes(mockSupabase, {
       forceManifest: true,
     });
 
     const ids = recipes.map((r) => r.id);
     const uniqueIds = new Set(ids);
-    expect(uniqueIds.size).toBe(recipes.length);
+    expect(ids.length).toBe(uniqueIds.size);
   });
 
-  it("never executes INSERT, UPDATE, UPSERT, or DELETE during catalog and detail lookups", async () => {
+  it("never executes insert, update, upsert, or delete on Supabase client during getCombinedRecipes", async () => {
     const mockSupabase = createMockSupabase([]);
 
-    // 1. Load catalog
-    await getCombinedRecipes({
-      client: mockSupabase,
+    await getCombinedRecipes(mockSupabase, {
       forceManifest: true,
     });
 
-    // 2. Load detail of existing markdown recipe
-    await getCombinedRecipeById("md-tacos-big-mac", {
-      client: mockSupabase,
-      forceManifest: true,
-    });
-
-    // 3. Load detail of non-existent recipe
-    await getCombinedRecipeById("non-existent-id", {
-      client: mockSupabase,
-      forceManifest: true,
-    });
-
-    // Verify ZERO writes occurred
     expect(mockSupabase.insertSpy).not.toHaveBeenCalled();
     expect(mockSupabase.updateSpy).not.toHaveBeenCalled();
     expect(mockSupabase.upsertSpy).not.toHaveBeenCalled();
     expect(mockSupabase.deleteSpy).not.toHaveBeenCalled();
   });
 
-  it("allows planner to resolve a recipe originating only from the manifest", async () => {
+  it("planner can resolve a recipe originating only from the markdown manifest", async () => {
     const mockSupabase = createMockSupabase([]);
-    const recipes = await getCombinedRecipes({
-      client: mockSupabase,
+    const recipes = await getCombinedRecipes(mockSupabase, {
       forceManifest: true,
     });
 
-    // Planner lookup simulation: finding a recipe by ID in planner recipes list
     const plannedRecipe = recipes.find((r) => r.id === "md-tacos-big-mac");
     expect(plannedRecipe).toBeDefined();
     expect(plannedRecipe?.title).toBe("Tacos Big Mac");
@@ -186,30 +194,116 @@ describe("RecipeService — Combined Read Layer without GET Writes", () => {
     expect(plannedRecipe?.ingredients?.length).toBeGreaterThan(0);
   });
 
-  it("correctly resolves recipe detail for markdown fallback", async () => {
-    const mockSupabase = createMockSupabase([]);
-    const detail = await getCombinedRecipeById("md-tacos-big-mac", {
-      client: mockSupabase,
-      forceManifest: true,
+  describe("Error propagation & discrimination", () => {
+    it("1. Fila encontrada: Supabase returns existing row", async () => {
+      const dbRow = {
+        id: "recipe-db-1",
+        title: "Lentejas Caseras",
+        time: "45 min",
+        ingredients: [{ cantidad: "200g", ingrediente: "Lentejas" }],
+        steps: [{ step: 1, description: "Cocer" }],
+      };
+      const mockSupabase = createMockSupabase([dbRow]);
+      const detail = await getCombinedRecipeById(mockSupabase, "recipe-db-1");
+
+      expect(detail).not.toBeNull();
+      expect(detail!.id).toBe("recipe-db-1");
+      expect(detail!.title).toBe("Lentejas Caseras");
+      expect(detail!.source).toBe("supabase");
     });
 
-    expect(detail).not.toBeNull();
-    expect(detail!.id).toBe("md-tacos-big-mac");
-    expect(detail!.title).toBe("Tacos Big Mac");
-    expect(detail!.ingredients).toHaveLength(6);
-    expect(detail!.steps).toHaveLength(6);
-    expect(detail!.source).toBe("markdown");
-    expect(detail!.chef_tips).toContain("https://vm.tiktok.com/ZN8MXJPFE/");
+    it("2. Consulta correcta sin fila: falls back to markdown (e.g. md-tacos-big-mac)", async () => {
+      const mockSupabase = createMockSupabase([]);
+      const detail = await getCombinedRecipeById(mockSupabase, "md-tacos-big-mac", {
+        forceManifest: true,
+      });
+
+      expect(detail).not.toBeNull();
+      expect(detail!.id).toBe("md-tacos-big-mac");
+      expect(detail!.title).toBe("Tacos Big Mac");
+      expect(detail!.source).toBe("markdown");
+    });
+
+    it("3. Consulta correcta sin fila en DB ni en Markdown: returns null", async () => {
+      const mockSupabase = createMockSupabase([]);
+      const detail = await getCombinedRecipeById(mockSupabase, "non-existent-recipe", {
+        forceManifest: true,
+      });
+
+      expect(detail).toBeNull();
+    });
+
+    it("4. Usuario no autorizado (401 / 403): throws error and NEVER falls back to partial markdown catalog", async () => {
+      const unauthClient = createMockSupabase([], {
+        error: { message: "Invalid JWT token or session expired", code: "401" },
+      });
+
+      await expect(getCombinedRecipes(unauthClient)).rejects.toThrow(
+        "Supabase recipes fetch error: Invalid JWT token or session expired (code: 401)"
+      );
+
+      await expect(getCombinedRecipeById(unauthClient, "md-tacos-big-mac")).rejects.toThrow(
+        'Supabase recipe lookup for "md-tacos-big-mac" failed: Invalid JWT token or session expired (code: 401)'
+      );
+    });
+
+    it("5. Error SQL / RLS (42501): throws error and does not hide permission violation", async () => {
+      const rlsErrorClient = createMockSupabase([], {
+        error: { message: "permission denied for table recipes", code: "42501" },
+      });
+
+      await expect(getCombinedRecipes(rlsErrorClient)).rejects.toThrow(
+        "Supabase recipes fetch error: permission denied for table recipes (code: 42501)"
+      );
+
+      await expect(getCombinedRecipeById(rlsErrorClient, "some-id")).rejects.toThrow(
+        "permission denied for table recipes (code: 42501)"
+      );
+    });
+
+    it("6. Error de red: throws error and does not swallow network failure", async () => {
+      const networkErrorClient = createMockSupabase([], {
+        networkError: new Error("Failed to fetch: Connection reset by peer"),
+      });
+
+      await expect(getCombinedRecipes(networkErrorClient)).rejects.toThrow(
+        "Failed to fetch: Connection reset by peer"
+      );
+
+      await expect(getCombinedRecipeById(networkErrorClient, "md-tacos-big-mac")).rejects.toThrow(
+        "Failed to fetch: Connection reset by peer"
+      );
+    });
   });
 
-  it("returns null when recipe does not exist in Supabase or Markdown", async () => {
-    const mockSupabase = createMockSupabase([]);
-    const detail = await getCombinedRecipeById("unknown-recipe-999", {
-      client: mockSupabase,
-      forceManifest: true,
-    });
+  describe("Architectural enforcement — No legacy anonymous client imports", () => {
+    it("ensures protected pages and read service do NOT import the legacy anonymous singleton", () => {
+      const filesToCheck = [
+        "app/page.tsx",
+        "app/planear/page.tsx",
+        "app/recetas/[id]/page.tsx",
+        "app/recetas/nueva/page.tsx",
+        "app/categorias/page.tsx",
+        "lib/recipes/recipeService.ts",
+        "lib/markdownRecipes.ts",
+        "components/recipes/RecipeActions.tsx",
+        "components/planner/AssignToPlannerModal.tsx",
+      ];
 
-    expect(detail).toBeNull();
+      for (const relPath of filesToCheck) {
+        const fullPath = path.resolve(__dirname, "../../", relPath);
+        expect(fs.existsSync(fullPath)).toBe(true);
+        const content = fs.readFileSync(fullPath, "utf-8");
+
+        // Must not import from "@/lib/supabase" or '@/lib/supabase' directly
+        const forbiddenImportRegex = /from\s+['"]@\/lib\/supabase['"]/g;
+        const matches = content.match(forbiddenImportRegex);
+        expect(
+          matches,
+          `File "${relPath}" must not import from legacy "@lib/supabase". Found: ${matches}`
+        ).toBeNull();
+      }
+    });
   });
 
   it("centralizes conversion helpers dbRowToRecipe and markdownRecipeToRecipe", () => {

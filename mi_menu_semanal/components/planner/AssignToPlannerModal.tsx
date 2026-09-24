@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { Recipe, RECIPES } from "@/data/mockData";
 import { getPlannedMeals, savePlannedMeals, PLANNER_EVENT_KEY, MealSlot } from "@/lib/plannerStore";
-import { supabase } from "@/lib/supabase";
+import { createClient } from "@/lib/supabase/client";
 import { handleMutationResult } from "@/lib/state/uiFeedback";
 
 interface AssignToPlannerModalProps {
@@ -30,6 +30,7 @@ export function AssignToPlannerModal({ recipe, onClose, allRecipes = [] }: Assig
 
     const loadDbRecipes = async () => {
       if (allRecipes.length === 0) {
+        const supabase = createClient();
         const { data } = await supabase.from("recipes").select("*");
         if (data) {
           setDbRecipes(data as Recipe[]);
@@ -45,7 +46,7 @@ export function AssignToPlannerModal({ recipe, onClose, allRecipes = [] }: Assig
     const handleLocalUpdate = () => {
       const saved = localStorage.getItem("planner_meals");
       if (saved) {
-        try { setPlannedMeals(JSON.parse(saved)); } catch (e) {}
+        try { setPlannedMeals(JSON.parse(saved)); } catch {}
       }
     };
 

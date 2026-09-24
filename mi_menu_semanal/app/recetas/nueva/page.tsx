@@ -4,7 +4,7 @@ import { useState, useRef, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Header } from "@/components/ui/Header";
 import { BottomNav } from "@/components/ui/BottomNav";
-import { supabase } from "@/lib/supabase";
+import { createClient } from "@/lib/supabase/client";
 
 type Ingredient = { id: string; quantity: string; name: string };
 type Step = { id: string; text: string; image?: File | null };
@@ -13,6 +13,7 @@ function RecipeForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const editId = searchParams.get('edit');
+  const supabase = createClient();
   
   // States
   const [title, setTitle] = useState("");
@@ -33,23 +34,25 @@ function RecipeForm() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const coverImageInputRef = useRef<HTMLInputElement>(null);
 
-  const [isEditing, setIsEditing] = useState(false);
-  const [isLoadingRecipe, setIsLoadingRecipe] = useState(false);
+  const isEditing = Boolean(editId);
+  const [isLoadingRecipe, setIsLoadingRecipe] = useState(Boolean(editId));
 
   useEffect(() => {
-    supabase.from('categories').select('id, name').not('id', 'in', '("_PLANNER_STATE_","_FREEZER_STATE_","_SHOPPING_LIST_STATE_","_FAVORITES_STATE_")').order('sort_order').then(({ data }) => {
-      if (data && data.length > 0) {
-        setDbCategories(data);
-      }
-    });
+    supabase
+      .from('categories')
+      .select('id, name')
+      .not('id', 'in', '("_PLANNER_STATE_","_FREEZER_STATE_","_SHOPPING_LIST_STATE_","_FAVORITES_STATE_")')
+      .order('sort_order')
+      .then((res: { data: { id: string; name: string }[] | null }) => {
+        if (res.data && res.data.length > 0) {
+          setDbCategories(res.data);
+        }
+      });
   }, []);
 
   // Cargar datos si estamos editando
   useEffect(() => {
     if (editId) {
-      setIsEditing(true);
-      setIsLoadingRecipe(true);
-      
       const loadRecipe = async () => {
         try {
           const { data: recipe, error } = await supabase
@@ -87,7 +90,7 @@ function RecipeForm() {
             }
             
             if (recipe.ingredients && recipe.ingredients.length > 0) {
-              setIngredients(recipe.ingredients.map((ing: any, i: number) => ({
+              setIngredients(recipe.ingredients.map((ing: { cantidad?: string; ingrediente?: string }, i: number) => ({
                 id: Date.now().toString() + i,
                 quantity: ing.cantidad || "",
                 name: ing.ingrediente || ""
@@ -95,7 +98,7 @@ function RecipeForm() {
             }
             
             if (recipe.steps && recipe.steps.length > 0) {
-              setSteps(recipe.steps.map((step: any, i: number) => ({
+              setSteps(recipe.steps.map((step: { description?: string }, i: number) => ({
                 id: Date.now().toString() + i,
                 text: step.description || "",
                 image: null // We don't fetch image blobs, user must re-upload if changing
@@ -192,7 +195,7 @@ function RecipeForm() {
       if (data.time && data.time !== "Variable") setTime(data.time);
       
       if (hasIngredients) {
-        setIngredients(data.ingredients.map((ing: any, i: number) => ({
+        setIngredients(data.ingredients.map((ing: { quantity?: string; name?: string }, i: number) => ({
           id: Date.now().toString() + i,
           quantity: ing.quantity || "",
           name: ing.name || ""
@@ -228,9 +231,10 @@ function RecipeForm() {
 
       alert("¡Receta extraída con éxito! Revisa los datos antes de guardar.");
 
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : String(error);
       console.error("Error al extraer receta:", error);
-      alert(error.message);
+      alert(msg);
     } finally {
       setIsScraping(false);
     }
@@ -277,7 +281,7 @@ function RecipeForm() {
         url: importUrl
       });
 
-      const recipeData: any = {
+      const recipeData: Record<string, unknown> = {
         title,
         category_id: selectedCategoryIds[0] || null,
         category_ids: selectedCategoryIds,
@@ -292,9 +296,9 @@ function RecipeForm() {
 
       // Si hay coverImage nueva o si venía del scraping, la incluimos
       if (coverImage || scrapedImageUrl) {
-        (recipeData as any).image = coverImageUrl;
+        recipeData.image = coverImageUrl;
       } else if (!isEditing) {
-        (recipeData as any).image = coverImageUrl;
+        recipeData.image = coverImageUrl;
       }
 
       let saveError;
@@ -304,9 +308,12 @@ function RecipeForm() {
         saveError = error;
       } else {
         const newId = Date.now().toString();
-        const insertData = { ...recipeData, id: newId, is_weekly_favorite: false };
-        // Asegurar que image existe para insert
-        if (!insertData.image) insertData.image = "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&q=80&w=800";
+        const insertData: Record<string, unknown> = {
+          ...recipeData,
+          id: newId,
+          is_weekly_favorite: false,
+          image: recipeData.image || "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&q=80&w=800",
+        };
         const { error } = await supabase.from('recipes').insert(insertData);
         saveError = error;
       }
@@ -316,9 +323,10 @@ function RecipeForm() {
       alert(isDraft ? "Borrador guardado con éxito" : "¡Receta publicada con éxito!");
       router.push('/');
       
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : String(error);
       console.error("Error al guardar receta:", error);
-      alert("Hubo un error al guardar: " + error.message);
+      alert("Hubo un error al guardar: " + msg);
     } finally {
       setIsSubmitting(false);
     }

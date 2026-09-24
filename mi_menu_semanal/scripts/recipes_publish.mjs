@@ -1,4 +1,4 @@
-import { execSync } from "node:child_process";
+import { execFileSync } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { validateRecipesAutomation } from "./recipes_validate.mjs";
@@ -10,12 +10,57 @@ const repoRoot = path.resolve(appDir, "..");
 
 const ALLOWED_BRANCH = "v2/phase-1-household-auth";
 
-function runGit(command, options = {}) {
-  return execSync(command, {
-    cwd: repoRoot,
-    encoding: "utf-8",
-    stdio: options.stdio || "pipe",
-  }).trim();
+/**
+ * Executes a git command safely using execFileSync without shell interpolation.
+ */
+export function runGit(args, options = {}) {
+  try {
+    return execFileSync("git", args, {
+      cwd: repoRoot,
+      encoding: "utf-8",
+      stdio: options.stdio || "pipe",
+    }).trim();
+  } catch (err) {
+    if (options.allowFailure) {
+      return null;
+    }
+    throw err;
+  }
+}
+
+/**
+ * Sanitizes a note/recipe title for use in commit messages:
+ * removes control characters (including newlines and carriage returns),
+ * collapses multiple spaces, and trims.
+ */
+export function sanitizeTitleForCommit(title) {
+  if (!title) return "";
+  return title
+    .replace(/[\x00-\x1f\x7f]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/**
+ * Verifies git branch synchronization state.
+ * Returns { aheadCount, behindCount, isDiverged, isIdentical }.
+ */
+export function checkBranchSync(branch = ALLOWED_BRANCH) {
+  const behindCount = parseInt(
+    runGit(["rev-list", "--count", `HEAD..origin/${branch}`]) || "0",
+    10
+  );
+  const aheadCount = parseInt(
+    runGit(["rev-list", "--count", `origin/${branch}..HEAD`]) || "0",
+    10
+  );
+
+  return {
+    aheadCount,
+    behindCount,
+    isDiverged: aheadCount > 0 && behindCount > 0,
+    isIdentical: aheadCount === 0 && behindCount === 0,
+  };
 }
 
 export function publishRecipesAutomation() {
@@ -27,7 +72,7 @@ export function publishRecipesAutomation() {
   console.log("==================================================");
 
   // 1. Guard: Check current branch
-  const currentBranch = runGit("git rev-parse --abbrev-ref HEAD");
+  const currentBranch = runGit(["rev-parse", "--abbrev-ref", "HEAD"]);
   console.log(`[publish] Current branch: ${currentBranch}`);
 
   if (currentBranch === "main") {
@@ -46,26 +91,42 @@ export function publishRecipesAutomation() {
   // 2. Guard: Remote synchronization check
   console.log("[publish] Fetching origin to verify branch synchronization...");
   try {
-    runGit(`git fetch origin ${ALLOWED_BRANCH}`);
+    runGit(["fetch", "origin", ALLOWED_BRANCH]);
   } catch (err) {
     console.error(`[publish] ERROR: Failed to fetch from origin/${ALLOWED_BRANCH}:`, err.message);
     process.exit(1);
   }
 
-  const behindCount = parseInt(
-    runGit(`git rev-list --count HEAD..origin/${ALLOWED_BRANCH}`) || "0",
-    10
-  );
-  if (behindCount > 0) {
+  const sync = checkBranchSync(ALLOWED_BRANCH);
+
+  if (sync.isDiverged) {
     console.error(
-      `[publish] SAFETY ERROR: Local branch is behind origin/${ALLOWED_BRANCH} by ${behindCount} commit(s).\n` +
+      `[publish] SAFETY ERROR: Local branch has diverged from origin/${ALLOWED_BRANCH} ` +
+      `(behind by ${sync.behindCount}, ahead by ${sync.aheadCount}).\n` +
+      `  Please resolve divergence manually before publishing recipes. Aborting.`
+    );
+    process.exit(1);
+  }
+
+  if (sync.behindCount > 0) {
+    console.error(
+      `[publish] SAFETY ERROR: Local branch is behind origin/${ALLOWED_BRANCH} by ${sync.behindCount} commit(s).\n` +
       `  Please pull / sync first before publishing. Aborting.`
     );
     process.exit(1);
   }
 
+  if (sync.aheadCount > 0) {
+    console.error(
+      `[publish] SAFETY ERROR: Local branch is ahead of origin/${ALLOWED_BRANCH} by ${sync.aheadCount} commit(s).\n` +
+      `  Refusing to publish recipes because unpushed code commits would be pushed.\n` +
+      `  HEAD and origin/${ALLOWED_BRANCH} must be identical before publishing. Aborting.`
+    );
+    process.exit(1);
+  }
+
   // 3. Guard: Working tree safety audit
-  const rawStatus = runGit("git status --porcelain");
+  const rawStatus = runGit(["status", "--porcelain"]);
   const statusLines = rawStatus
     ? rawStatus.split("\n").filter((l) => l && l.length >= 4)
     : [];
@@ -143,20 +204,21 @@ export function publishRecipesAutomation() {
   }
 
   // Check if there are any changes to publish
-  const statusAfterValidation = runGit("git status --porcelain");
+  const statusAfterValidation = runGit(["status", "--porcelain"]);
   if (!statusAfterValidation) {
     console.log("\n[publish] Working tree is completely clean. No recipe changes to publish.");
     return;
   }
 
-  // Determine which recipes were changed / added
-  const changedDiff = runGit("git status --porcelain RecetasNOTAS");
+  // Determine which recipes were changed / added safely
+  const changedDiff = runGit(["status", "--porcelain", "RecetasNOTAS"]);
   const changedNoteNames = [];
   if (changedDiff) {
-    const lines = changedDiff.split("\n");
+    const lines = changedDiff.split("\n").filter(Boolean);
     for (const l of lines) {
-      const p = l.slice(3).trim();
-      const base = path.basename(p, ".md");
+      const match = l.match(/^([MADRCU?!]{1,2})\s+(.+)$/);
+      const p = match ? match[2].trim() : l.slice(3).trim();
+      const base = sanitizeTitleForCommit(path.basename(p, ".md"));
       if (base && !changedNoteNames.includes(base)) {
         changedNoteNames.push(base);
       }
@@ -186,13 +248,53 @@ export function publishRecipesAutomation() {
     return;
   }
 
-  // EXECUTE MODE
+  // EXECUTE MODE: Safe execution without shell concatenation
   console.log("\n[publish] Executing commit and push...");
-  runGit("git add RecetasNOTAS/ mi_menu_semanal/data/markdownRecipesManifest.json");
-  runGit(`git commit -m "${commitMessage.replace(/"/g, '\\"')}"`);
+  runGit(["add", "RecetasNOTAS/", "mi_menu_semanal/data/markdownRecipesManifest.json"]);
+  runGit(["commit", "-m", commitMessage], { stdio: "inherit" });
+
+  // Post-commit audit:
+  // Must be EXACTLY 1 commit ahead of origin
+  const postAheadCount = parseInt(
+    runGit(["rev-list", "--count", `origin/${ALLOWED_BRANCH}..HEAD`]) || "0",
+    10
+  );
+  if (postAheadCount !== 1) {
+    console.error(
+      `[publish] CRITICAL SAFETY ERROR: Post-commit ahead count is ${postAheadCount} (expected exactly 1).\n` +
+      `  Aborting push to prevent uploading unexpected commits.`
+    );
+    process.exit(1);
+  }
+
+  // Audit the committed files in HEAD
+  const committedFiles = runGit(["diff-tree", "--no-commit-id", "--name-only", "-r", "HEAD"])
+    .split("\n")
+    .map((f) => f.trim())
+    .filter(Boolean);
+
+  for (const f of committedFiles) {
+    const isAllowed = allowedPathPrefixes.some((prefix) => f.startsWith(prefix));
+    if (!isAllowed) {
+      console.error(
+        `[publish] CRITICAL SAFETY ERROR: Commit contains forbidden file outside recipe scope: "${f}".\n` +
+        `  Aborting push.`
+      );
+      process.exit(1);
+    }
+    for (const pat of dangerousPatterns) {
+      if (pat.test(f)) {
+        console.error(
+          `[publish] CRITICAL SAFETY ERROR: Commit contains dangerous or sensitive file: "${f}".\n` +
+          `  Aborting push.`
+        );
+        process.exit(1);
+      }
+    }
+  }
 
   console.log(`[publish] Pushing to origin/${ALLOWED_BRANCH}...`);
-  runGit(`git push origin ${ALLOWED_BRANCH}`);
+  runGit(["push", "origin", ALLOWED_BRANCH], { stdio: "inherit" });
 
   console.log("\n==================================================");
   console.log(" ✅ RECIPE PUBLICATION COMPLETE");

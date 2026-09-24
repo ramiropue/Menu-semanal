@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { execSync } from "node:child_process";
+import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -12,10 +12,11 @@ const notasDir = path.resolve(repoRoot, "RecetasNOTAS");
 const DEBOUNCE_MS = 1200;
 let debounceTimer = null;
 let isProcessing = false;
+let pendingRun = false;
 
 const isExecute = process.argv.includes("--execute");
 
-function isIgnoredFile(filename) {
+export function isIgnoredFile(filename) {
   if (!filename) return true;
   const base = path.basename(filename);
   if (base.startsWith(".") || base === ".DS_Store" || base.endsWith("~") || base.endsWith(".tmp")) {
@@ -27,9 +28,59 @@ function isIgnoredFile(filename) {
   return false;
 }
 
-function processChanges() {
+/**
+ * Checks if a file has finished being written by comparing size and mtimeMs across intervals.
+ */
+export async function isFileStable(filePath, checkIntervalMs = 200, maxChecks = 4) {
+  if (!fs.existsSync(filePath)) return true;
+  let lastStat = null;
+  for (let i = 0; i < maxChecks; i++) {
+    try {
+      const currentStat = fs.statSync(filePath);
+      if (lastStat) {
+        if (currentStat.size === lastStat.size && currentStat.mtimeMs === lastStat.mtimeMs) {
+          return true;
+        }
+      }
+      lastStat = currentStat;
+    } catch {
+      return false;
+    }
+    await new Promise((resolve) => setTimeout(resolve, checkIntervalMs));
+  }
+  return true;
+}
+
+export function getWatcherState() {
+  return { isProcessing, pendingRun };
+}
+
+export function setWatcherState(state) {
+  if (state.isProcessing !== undefined) isProcessing = state.isProcessing;
+  if (state.pendingRun !== undefined) pendingRun = state.pendingRun;
+}
+
+export function runPipeline() {
+  const args = ["scripts/recipes_publish.mjs"];
+  if (isExecute) {
+    args.push("--execute");
+  }
+
+  execFileSync("node", args, {
+    cwd: appDir,
+    stdio: "inherit",
+  });
+}
+
+/**
+ * Executes changes with concurrency lock, pendingRun queuing, and safe subprocess invocation.
+ */
+export async function processChanges(options = {}) {
+  const runner = options.runner || runPipeline;
+
   if (isProcessing) {
-    console.log("[watcher] Already processing an event; event queued.");
+    pendingRun = true;
+    console.log("[watcher] Event received while processing; marked pending for next iteration.");
     return;
   }
 
@@ -38,19 +89,19 @@ function processChanges() {
   console.log(`[watcher] Triggered change event. Running recipe pipeline (${isExecute ? "EXECUTE" : "DRY RUN"})...`);
 
   try {
-    const cmd = isExecute
-      ? "node scripts/recipes_publish.mjs --execute"
-      : "node scripts/recipes_publish.mjs";
-
-    execSync(cmd, {
-      cwd: appDir,
-      stdio: "inherit",
-    });
+    await runner();
     console.log("[watcher] Pipeline run finished successfully.");
   } catch {
     console.error("[watcher] Pipeline run finished with error(s). Watcher continues running.");
   } finally {
     isProcessing = false;
+    if (pendingRun) {
+      pendingRun = false;
+      console.log("[watcher] Executing pending run queued during previous processing...");
+      setTimeout(() => {
+        processChanges(options);
+      }, 200);
+    }
   }
 }
 
@@ -67,19 +118,26 @@ export function startRecipesWatcher() {
   console.log("==================================================");
   console.log("Press Ctrl+C to stop.\n");
 
-  fs.watch(notasDir, { recursive: true }, (eventType, filename) => {
+  fs.watch(notasDir, { recursive: true }, async (eventType, filename) => {
     if (isIgnoredFile(filename)) {
       return;
     }
 
+    const fullPath = path.join(notasDir, filename);
     console.log(`[watcher] Detected [${eventType}] on: ${filename}`);
 
     if (debounceTimer) {
       clearTimeout(debounceTimer);
     }
 
-    debounceTimer = setTimeout(() => {
+    debounceTimer = setTimeout(async () => {
       debounceTimer = null;
+      // Ensure file writing is stable before processing
+      const stable = await isFileStable(fullPath);
+      if (!stable) {
+        console.warn(`[watcher] File "${filename}" still changing; waiting for next cycle.`);
+        return;
+      }
       processChanges();
     }, DEBOUNCE_MS);
   });

@@ -1,4 +1,3 @@
-import { supabase as defaultSupabase } from "@/lib/supabase";
 import { Recipe } from "@/data/mockData";
 import {
   getMarkdownRecipes,
@@ -106,7 +105,6 @@ export function markdownRecipeToRecipe(md: MarkdownRecipe): Recipe {
 }
 
 export interface CombinedRecipesOptions {
-  client?: SupabaseClient;
   forceManifest?: boolean;
 }
 
@@ -115,30 +113,30 @@ export interface CombinedRecipesOptions {
  *
  * Rules:
  * 1. Zero DB writes: never executes INSERT, UPDATE, UPSERT, or DELETE.
- * 2. Supabase precedence: if a recipe exists with the same ID in both Supabase
+ * 2. Authenticated client required: accepts an explicit SupabaseClient.
+ * 3. Error transparency: if Supabase fails (RLS, network, 401, 403), the error is
+ *    propagated immediately and NOT silenced into a partial markdown-only catalog.
+ * 4. Supabase precedence: if a recipe exists with the same ID in both Supabase
  *    and the Markdown manifest, the Supabase version prevails (preserving user edits).
- * 3. Markdown availability: recipes from the manifest are immediately visible
- *    even when they have not yet been imported or persisted in Supabase.
- * 4. Deduplication: strictly unique IDs across the entire returned list.
+ * 5. Markdown availability: recipes from the manifest are immediately visible
+ *    when the DB query succeeds cleanly without error.
+ * 6. Deduplication: strictly unique IDs across the entire returned list.
  */
 export async function getCombinedRecipes(
+  client: SupabaseClient,
   options?: CombinedRecipesOptions
 ): Promise<Recipe[]> {
-  const client = options?.client ?? defaultSupabase;
-
-  // 1. Fetch from Supabase
-  let dbData: Record<string, unknown>[] | null = null;
-  try {
-    const res = await client.from("recipes").select("*");
-    dbData = res.data as Record<string, unknown>[] | null;
-    if (res.error) {
-      console.warn("[recipeService] Supabase recipes fetch error:", res.error.message);
-    }
-  } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : String(err);
-    console.warn("[recipeService] Failed to query Supabase recipes:", msg);
+  if (!client) {
+    throw new Error("[recipeService] An authenticated SupabaseClient is required for getCombinedRecipes.");
   }
 
+  // 1. Fetch from Supabase (strictly propagate any error)
+  const res = await client.from("recipes").select("*");
+  if (res.error) {
+    throw new Error(`[recipeService] Supabase recipes fetch error: ${res.error.message} (code: ${res.error.code || "UNKNOWN"})`);
+  }
+
+  const dbData = res.data as Record<string, unknown>[] | null;
   const dbRecipes: Recipe[] = (dbData || []).map(dbRowToRecipe);
   const seenIds = new Set<string>(dbRecipes.map((r) => r.id));
 
@@ -161,59 +159,64 @@ export async function getCombinedRecipes(
 /**
  * Pure read-only loader for a single recipe by ID.
  *
- * Checks Supabase first (joined with categories).
- * Falls back to the Markdown manifest when Supabase does not contain the row.
- * Returns `null` if not found in either source.
- * Never executes database writes during lookups.
+ * Rules:
+ * 1. Checks Supabase first using the provided authenticated SupabaseClient.
+ * 2. If Supabase query fails (network error, RLS 42501, 401, 403), the error is
+ *    propagated immediately and NOT silenced into "recipe not found".
+ * 3. Falls back to the Markdown manifest ONLY when Supabase responds cleanly with 0 rows.
+ * 4. Returns `null` if not found in either source.
+ * 5. Never executes database writes during lookups.
  */
 export async function getCombinedRecipeById(
+  client: SupabaseClient,
   id: string,
   options?: CombinedRecipesOptions
 ): Promise<RecipeDetail | null> {
-  const client = options?.client ?? defaultSupabase;
-
-  // 1. Try Supabase first
-  try {
-    const { data: dbRecipe, error } = await client
-      .from("recipes")
-      .select("*, categories(name, icon)")
-      .eq("id", id)
-      .maybeSingle();
-
-    if (!error && dbRecipe) {
-      const row = dbRecipe as Record<string, unknown>;
-      return {
-        id: String(row.id),
-        title: String(row.title || ""),
-        image: (row.image as string) || MD_PLACEHOLDER_IMAGE,
-        tags: Array.isArray(row.tags) ? (row.tags as string[]) : [],
-        type: (row.type as string) || "standard",
-        time: String(row.time || "30 min"),
-        rating: row.rating ? Number(row.rating) : null,
-        is_weekly_favorite: !!row.is_weekly_favorite,
-        is_favorite: !!row.is_favorite,
-        servings: typeof row.servings === "number" ? row.servings : 4,
-        calories: typeof row.calories === "number" ? row.calories : (row.calories as string | undefined),
-        description: (row.description as string) || null,
-        category_id: (row.category_id as string) || null,
-        category_ids: Array.isArray(row.category_ids)
-          ? (row.category_ids as string[])
-          : row.category_id
-          ? [String(row.category_id)]
-          : [],
-        categories: (row.categories as { name?: string; icon?: string } | null) || null,
-        ingredients: (row.ingredients as Recipe["ingredients"]) || [],
-        steps: (row.steps as Recipe["steps"]) || [],
-        chef_tips: (row.chef_tips as string) || "",
-        source: "supabase",
-      };
-    }
-  } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : String(err);
-    console.warn(`[recipeService] Supabase lookup for "${id}" failed:`, msg);
+  if (!client) {
+    throw new Error("[recipeService] An authenticated SupabaseClient is required for getCombinedRecipeById.");
   }
 
-  // 2. Fallback to Markdown
+  // 1. Try Supabase first (strictly propagate errors)
+  const { data: dbRecipe, error } = await client
+    .from("recipes")
+    .select("*, categories(name, icon)")
+    .eq("id", id)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(`[recipeService] Supabase recipe lookup for "${id}" failed: ${error.message} (code: ${error.code || "UNKNOWN"})`);
+  }
+
+  if (dbRecipe) {
+    const row = dbRecipe as Record<string, unknown>;
+    return {
+      id: String(row.id),
+      title: String(row.title || ""),
+      image: (row.image as string) || MD_PLACEHOLDER_IMAGE,
+      tags: Array.isArray(row.tags) ? (row.tags as string[]) : [],
+      type: (row.type as string) || "standard",
+      time: String(row.time || "30 min"),
+      rating: row.rating ? Number(row.rating) : null,
+      is_weekly_favorite: !!row.is_weekly_favorite,
+      is_favorite: !!row.is_favorite,
+      servings: typeof row.servings === "number" ? row.servings : 4,
+      calories: typeof row.calories === "number" ? row.calories : (row.calories as string | undefined),
+      description: (row.description as string) || null,
+      category_id: (row.category_id as string) || null,
+      category_ids: Array.isArray(row.category_ids)
+        ? (row.category_ids as string[])
+        : row.category_id
+        ? [String(row.category_id)]
+        : [],
+      categories: (row.categories as { name?: string; icon?: string } | null) || null,
+      ingredients: (row.ingredients as Recipe["ingredients"]) || [],
+      steps: (row.steps as Recipe["steps"]) || [],
+      chef_tips: (row.chef_tips as string) || "",
+      source: "supabase",
+    };
+  }
+
+  // 2. Fallback to Markdown only when Supabase cleanly returned no matching row
   const mdRecipe = getMarkdownRecipeById(id, { forceManifest: options?.forceManifest });
   if (!mdRecipe) {
     return null;

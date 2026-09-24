@@ -1,4 +1,4 @@
-import { execSync } from "node:child_process";
+import { execFileSync } from "node:child_process";
 import path from "node:path";
 import fs from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -88,7 +88,7 @@ export function validateRecipesAutomation() {
   // 5. Run recipe-specific tests
   console.log("\n[validate] Running recipe test suites (Vitest)...");
   try {
-    execSync("npx vitest run tests/recipes/", {
+    execFileSync("npx", ["vitest", "run", "tests/recipes/"], {
       cwd: appDir,
       stdio: "inherit",
     });
@@ -100,7 +100,7 @@ export function validateRecipesAutomation() {
   // 6. Run git diff --check
   console.log("\n[validate] Checking git whitespace / diff issues...");
   try {
-    execSync("git diff --check", {
+    execFileSync("git", ["diff", "--check"], {
       cwd: repoRoot,
       stdio: "inherit",
     });

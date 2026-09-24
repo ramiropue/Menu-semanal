@@ -2,6 +2,7 @@ import { Header } from "@/components/ui/Header";
 import { BottomNav } from "@/components/ui/BottomNav";
 import { getCombinedRecipeById } from "@/lib/recipes/recipeService";
 import { RecipeIngredient, RecipeStep } from "@/data/mockData";
+import { createClient } from "@/lib/supabase/server";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { RecipeActions } from "@/components/recipes/RecipeActions";
@@ -20,8 +21,9 @@ export default async function RecipeDetailPage({
   const resolvedSearchParams = searchParams ? await searchParams : {};
   const backUrl = resolvedSearchParams.from === 'planear' ? '/planear' : '/';
   
-  // Fetch recipe data with combined Supabase + Markdown fallback
-  const recipe = await getCombinedRecipeById(resolvedParams.id);
+  // Fetch recipe data with authenticated server client & Markdown fallback
+  const supabase = await createClient();
+  const recipe = await getCombinedRecipeById(supabase, resolvedParams.id);
 
   if (!recipe) {
     return notFound();
@@ -215,8 +217,8 @@ export default async function RecipeDetailPage({
               </div>
             </div>
 
-            {/* BOTONES DE ACCIÓN (Modificar / Eliminar) */}
-            <RecipeActions recipeId={recipe.id} />
+            {/* BOTONES DE ACCIÓN (Modificar / Eliminar para Supabase, aviso para Markdown) */}
+            <RecipeActions recipeId={recipe.id} source={recipe.source} />
 
             {/* TARJETA DE VÍDEO ORIGINAL */}
             {sourceUrl && (
