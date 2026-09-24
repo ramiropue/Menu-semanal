@@ -5,6 +5,9 @@
   "scripts": {
     "dev": "next dev",
     "generate:manifest": "node scripts/generate_recipe_manifest.mjs",
+    "recipes:validate": "node scripts/recipes_validate.mjs",
+    "recipes:publish": "node scripts/recipes_publish.mjs",
+    "recipes:watch": "node scripts/recipes_watch.mjs",
     "prebuild": "node scripts/generate_recipe_manifest.mjs",
     "build": "next build",
     "start": "next start",

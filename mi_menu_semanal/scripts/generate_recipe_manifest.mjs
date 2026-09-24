@@ -6,7 +6,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 /** Convert a filename / title into a URL-safe slug */
-function slugify(text) {
+export function slugify(text) {
   return text
     .toLowerCase()
     .normalize("NFD")
@@ -16,7 +16,7 @@ function slugify(text) {
 }
 
 /** Recursively find all .md files under a directory */
-function findMarkdownFiles(dir) {
+export function findMarkdownFiles(dir) {
   const results = [];
   if (!fs.existsSync(dir)) return results;
 
@@ -34,7 +34,7 @@ function findMarkdownFiles(dir) {
 }
 
 /** Parse markdown recipe content into structured object */
-function parseMarkdownRecipe(filePath, content) {
+export function parseMarkdownRecipe(filePath, content) {
   const lines = content.split("\n");
 
   let title = "";
@@ -156,49 +156,101 @@ function parseMarkdownRecipe(filePath, content) {
   };
 }
 
-function generateRecipeManifest() {
-  const candidateDirs = [
-    path.resolve(__dirname, "../../RecetasNOTAS"),
-    path.resolve(process.cwd(), "..", "RecetasNOTAS"),
-    path.resolve(process.cwd(), "RecetasNOTAS"),
-  ];
+/**
+ * Validates a parsed recipe for minimum integrity requirements:
+ * non-empty title, at least 1 valid ingredient, at least 1 valid step.
+ */
+export function validateRecipe(recipe, filePath = "") {
+  if (!recipe.title || !recipe.title.trim()) {
+    throw new Error(`[manifest] Recipe in "${filePath}" is missing a title.`);
+  }
+
+  if (!Array.isArray(recipe.ingredients) || recipe.ingredients.length === 0) {
+    throw new Error(`[manifest] Recipe "${recipe.title}" in "${filePath}" has no ingredients.`);
+  }
+
+  for (const ing of recipe.ingredients) {
+    if (!ing.ingrediente || !ing.ingrediente.trim()) {
+      throw new Error(`[manifest] Recipe "${recipe.title}" in "${filePath}" contains a blank ingredient name.`);
+    }
+  }
+
+  if (!Array.isArray(recipe.steps) || recipe.steps.length === 0) {
+    throw new Error(`[manifest] Recipe "${recipe.title}" in "${filePath}" has no preparation steps.`);
+  }
+
+  for (const st of recipe.steps) {
+    if (!st.description || !st.description.trim()) {
+      throw new Error(`[manifest] Recipe "${recipe.title}" in "${filePath}" contains a blank step description.`);
+    }
+  }
+
+  if (!recipe.id || !recipe.id.startsWith("md-")) {
+    throw new Error(`[manifest] Recipe "${recipe.title}" has an invalid ID "${recipe.id}".`);
+  }
+}
+
+/**
+ * Generates the recipe manifest from markdown notes.
+ *
+ * Options:
+ * - sourceDir: custom source directory path
+ * - manifestPath: custom destination manifest path
+ * - allowMissingSource: boolean; if false (default), missing source causes error exit
+ * - exitOnError: boolean (default: true for CLI usage)
+ */
+export function generateRecipeManifest(options = {}) {
+  const allowMissingSource =
+    options.allowMissingSource ??
+    (process.argv.includes("--allow-missing-source") || process.env.ALLOW_MISSING_RECETAS_SOURCE === "true");
+
+  const exitOnError = options.exitOnError ?? true;
+
+  const candidateDirs = options.sourceDir
+    ? [path.resolve(options.sourceDir)]
+    : [
+        path.resolve(__dirname, "../../RecetasNOTAS"),
+        path.resolve(process.cwd(), "..", "RecetasNOTAS"),
+        path.resolve(process.cwd(), "RecetasNOTAS"),
+      ];
 
   const notasDir = candidateDirs.find((dir) => fs.existsSync(dir));
-  const manifestPath = path.resolve(__dirname, "../data/markdownRecipesManifest.json");
+  const manifestPath = options.manifestPath
+    ? path.resolve(options.manifestPath)
+    : path.resolve(__dirname, "../data/markdownRecipesManifest.json");
 
   if (!notasDir) {
-    if (fs.existsSync(manifestPath)) {
-      try {
-        const existing = JSON.parse(fs.readFileSync(manifestPath, "utf-8"));
-        if (Array.isArray(existing) && existing.length > 0) {
-          console.log(`[manifest] RecetasNOTAS directory not present in environment. Preserving existing manifest with ${existing.length} recipes.`);
-          return;
-        }
-      } catch {
-        // proceed
-      }
+    const errorMsg =
+      `[manifest] ERROR: Source directory RecetasNOTAS not found.\n` +
+      `  Checked locations:\n` +
+      candidateDirs.map((d) => `    - ${d}`).join("\n") +
+      `\n  To allow missing source in specialized environments, pass --allow-missing-source.`;
+
+    if (allowMissingSource) {
+      console.warn(`[manifest] WARNING: Source directory not found, but --allow-missing-source is active. Preserving existing manifest.`);
+      return { success: true, preserved: true, recipes: [] };
     }
-    console.warn("[manifest] RecetasNOTAS directory not found. Writing empty manifest.");
-    fs.writeFileSync(manifestPath, "[]\n", "utf-8");
-    return;
+
+    console.error(errorMsg);
+    if (exitOnError) {
+      process.exit(1);
+    }
+    throw new Error(errorMsg);
   }
 
   const files = findMarkdownFiles(notasDir);
   if (files.length === 0) {
-    if (fs.existsSync(manifestPath)) {
-      try {
-        const existing = JSON.parse(fs.readFileSync(manifestPath, "utf-8"));
-        if (Array.isArray(existing) && existing.length > 0) {
-          console.log(`[manifest] No markdown files found in ${notasDir}. Preserving existing manifest with ${existing.length} recipes.`);
-          return;
-        }
-      } catch {
-        // proceed
-      }
+    const errorMsg = `[manifest] ERROR: No markdown (.md) files found in source directory "${notasDir}".`;
+    if (allowMissingSource) {
+      console.warn(`[manifest] WARNING: No markdown files found, but --allow-missing-source is active. Preserving existing manifest.`);
+      return { success: true, preserved: true, recipes: [] };
     }
-    console.warn(`[manifest] No markdown files found in ${notasDir}. Writing empty manifest.`);
-    fs.writeFileSync(manifestPath, "[]\n", "utf-8");
-    return;
+
+    console.error(errorMsg);
+    if (exitOnError) {
+      process.exit(1);
+    }
+    throw new Error(errorMsg);
   }
 
   const recipes = [];
@@ -208,13 +260,21 @@ function generateRecipeManifest() {
     const content = fs.readFileSync(file, "utf-8");
     const recipe = parseMarkdownRecipe(file, content);
 
+    // Validate recipe content
+    validateRecipe(recipe, file);
+
+    // Enforce ID uniqueness
     if (seenIds.has(recipe.id)) {
-      throw new Error(
+      const dupError =
         `[manifest] Duplicate recipe ID detected: "${recipe.id}"\n` +
         `  First occurrence: ${seenIds.get(recipe.id)}\n` +
         `  Second occurrence: ${file}\n` +
-        `Recipe IDs must be strictly unique.`
-      );
+        `Recipe IDs must be strictly unique.`;
+      console.error(dupError);
+      if (exitOnError) {
+        process.exit(1);
+      }
+      throw new Error(dupError);
     }
 
     seenIds.set(recipe.id, file);
@@ -224,13 +284,28 @@ function generateRecipeManifest() {
   // Sort deterministically by ID ascending
   recipes.sort((a, b) => a.id.localeCompare(b.id));
 
+  // Atomic write: write to temp file in destination directory then renameSync
+  const manifestDir = path.dirname(manifestPath);
+  if (!fs.existsSync(manifestDir)) {
+    fs.mkdirSync(manifestDir, { recursive: true });
+  }
+
+  const tempPath = path.join(manifestDir, `.${path.basename(manifestPath)}.tmp.${Date.now()}`);
   const jsonContent = JSON.stringify(recipes, null, 2) + "\n";
-  fs.writeFileSync(manifestPath, jsonContent, "utf-8");
+
+  fs.writeFileSync(tempPath, jsonContent, "utf-8");
+  fs.renameSync(tempPath, manifestPath);
 
   console.log(`[manifest] Successfully generated ${recipes.length} recipe(s) into ${manifestPath}:`);
   for (const r of recipes) {
     console.log(`  - [${r.id}] "${r.title}" (${r.ingredients.length} ingredients, ${r.steps.length} steps)`);
   }
+
+  return { success: true, preserved: false, recipes };
 }
 
-generateRecipeManifest();
+// Auto-run when executed directly via CLI
+const isMain = process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1]);
+if (isMain) {
+  generateRecipeManifest();
+}

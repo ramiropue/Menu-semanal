@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Plantilla macOS launchd para el vigilante automático de recetas de Menú Semanal.
+  
+  ADVERTENCIA DE SEGURIDAD:
+  No instalar ni activar sin aprobación expresa del usuario.
+  
+  Instalación futura (cuando sea solicitada):
+  1. Copiar a ~/Library/LaunchAgents/com.menusemanal.recipeswatcher.plist
+  2. Ajustar las rutas absolutas según el usuario y la instalación de node.
+  3. launchctl load ~/Library/LaunchAgents/com.menusemanal.recipeswatcher.plist
+-->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.menusemanal.recipeswatcher</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <!-- Reemplazar con la ruta real a node si difiere (ej: /usr/local/bin/node o /opt/homebrew/bin/node) -->
+        <string>/usr/local/bin/node</string>
+        <string>/Users/cited/Desktop/VibeCoding/Menu semanal/mi_menu_semanal/scripts/recipes_watch.mjs</string>
+        <!-- Por defecto se ejecuta en dry-run. Para publicación activa añadir: <string>- -execute</string> -->
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>/Users/cited/Desktop/VibeCoding/Menu semanal/mi_menu_semanal</string>
+
+    <key>RunAtLoad</key>
+    <false/>
+
+    <key>KeepAlive</key>
+    <dict>
+        <key>SuccessfulExit</key>
+        <false/>
+    </dict>
+
+    <key>StandardOutPath</key>
+    <string>/tmp/com.menusemanal.recipeswatcher.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>/tmp/com.menusemanal.recipeswatcher.error.log</string>
+</dict>
+</plist>
