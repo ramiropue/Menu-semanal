@@ -1,11 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { getSafeRedirectUrl } from './url';
+import { requestLoginOtp, RequestOtpOptions } from './otp';
 
-export interface SendMagicLinkOptions {
-  email: string;
-  next?: string | null;
-  origin?: string;
-}
+export type SendMagicLinkOptions = RequestOtpOptions;
 
 export interface SendMagicLinkResult {
   success: boolean;
@@ -13,7 +9,8 @@ export interface SendMagicLinkResult {
 }
 
 /**
- * Envía un enlace de acceso (Magic Link) mediante Supabase Auth (signInWithOtp).
+ * Envía un enlace de acceso (Magic Link / OTP) mediante Supabase Auth.
+ * Mantenido temporalmente para compatibilidad durante la transición hacia OTP de 6 dígitos.
  *
  * Garantías de Seguridad:
  * 1. Establece obligatoriamente `shouldCreateUser: false` para impedir registros públicos.
@@ -24,30 +21,14 @@ export async function sendMagicLink(
   supabase: Pick<SupabaseClient, 'auth'>,
   options: SendMagicLinkOptions
 ): Promise<SendMagicLinkResult> {
-  const email = options.email.trim().toLowerCase();
-  const safeNext = getSafeRedirectUrl(options.next, '/');
-  const origin = options.origin || (typeof window !== 'undefined' ? window.location.origin : '');
-
-  const emailRedirectTo = `${origin}/auth/callback?next=${encodeURIComponent(safeNext)}`;
-
-  try {
-    const { error } = await supabase.auth.signInWithOtp({
-      email,
-      options: {
-        emailRedirectTo,
-        shouldCreateUser: false,
-      },
-    });
-
-    if (error) {
-      return { success: false, error };
-    }
-
-    return { success: true };
-  } catch (err) {
-    return {
-      success: false,
-      error: err instanceof Error ? err : new Error(String(err)),
-    };
-  }
+  const result = await requestLoginOtp(supabase, options);
+  return {
+    success: result.success,
+    error:
+      result.rawError instanceof Error
+        ? result.rawError
+        : result.rawError
+          ? new Error(String(result.rawError))
+          : null,
+  };
 }
