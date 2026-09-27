@@ -193,56 +193,88 @@ describe('6-Digit OTP Authentication Flow (Etapa 5C-E)', () => {
   });
 
   // =========================================================================
-  // 4. SANITIZACIÓN Y ACEPTACIÓN DE EXACTAMENTE SEIS DÍGITOS
+  // 4. SANITIZACIÓN Y ACEPTACIÓN DE CÓDIGOS OTP DE 6 U 8 DÍGITOS
   // =========================================================================
-  describe('4. Validación y Formato de Código OTP (6 Dígitos)', () => {
-    it('acepta códigos de exactamente seis dígitos numéricos', () => {
+  describe('4. Validación y Formato de Código OTP (6 u 8 Dígitos)', () => {
+    it('acepta códigos de exactamente seis u ocho dígitos numéricos', () => {
+      // 6 dígitos
       expect(isValidOtpFormat('123456')).toBe(true);
       expect(isValidOtpFormat('000000')).toBe(true);
       expect(isValidOtpFormat('999999')).toBe(true);
+
+      // 8 dígitos (formato enviado por Supabase Auth)
+      expect(isValidOtpFormat('12345678')).toBe(true);
+      expect(isValidOtpFormat('00000000')).toBe(true);
+      expect(isValidOtpFormat('99999999')).toBe(true);
     });
 
-    it('sanitiza espacios y caracteres no numéricos, recortando a máximo 6 caracteres', () => {
+    it('sanitiza espacios y caracteres no numéricos, recortando a máximo 8 caracteres', () => {
       expect(sanitizeOtp(' 1 2 3 4 5 6 ')).toBe('123456');
-      expect(sanitizeOtp('12-34-56')).toBe('123456');
-      expect(sanitizeOtp('abc123456def')).toBe('123456');
-      expect(sanitizeOtp('1234567890')).toBe('123456');
+      expect(sanitizeOtp(' 1 2 3 4 5 6 7 8 ')).toBe('12345678');
+      expect(sanitizeOtp('12-34-56-78')).toBe('12345678');
+      expect(sanitizeOtp('abc12345678def')).toBe('12345678');
+      expect(sanitizeOtp('1234567890')).toBe('12345678'); // recortado a 8
     });
 
-    it('rechaza códigos incompletos, vacíos o no numéricos', () => {
+    it('rechaza códigos de 5, 7 o 9 dígitos, vacíos o con letras y símbolos', () => {
       expect(isValidOtpFormat('')).toBe(false);
-      expect(isValidOtpFormat('12345')).toBe(false);
-      expect(isValidOtpFormat('1234567')).toBe(false);
+      expect(isValidOtpFormat('12345')).toBe(false); // 5 dígitos
+      expect(isValidOtpFormat('1234567')).toBe(false); // 7 dígitos
+      expect(isValidOtpFormat('123456789')).toBe(false); // 9 dígitos
       expect(isValidOtpFormat('12345a')).toBe(false);
+      expect(isValidOtpFormat('1234567a')).toBe(false);
       expect(isValidOtpFormat('abcdef')).toBe(false);
+      expect(isValidOtpFormat('abcdefgh')).toBe(false);
+      expect(isValidOtpFormat('12 34 56')).toBe(false);
+      expect(isValidOtpFormat('12-34-56-78')).toBe(false);
     });
 
-    it('verifyLoginOtp rechaza sin llamar a Supabase si el código es inválido', async () => {
+    it('verifyLoginOtp rechaza sin llamar a Supabase si el código tiene longitud incorrecta o símbolos', async () => {
       const mockAuth = { verifyOtp: mockVerifyOtp, signOut: mockSignOut };
       const mockRpcClient = mockRpc;
 
-      const result = await verifyLoginOtp(
+      // Prueba con 5 dígitos
+      const res5 = await verifyLoginOtp(
         {
           auth: mockAuth as unknown as import('@supabase/supabase-js').SupabaseClient['auth'],
           rpc: mockRpcClient,
         },
-        {
-          email: 'member@example.com',
-          token: '1234', // incompleto
-        }
+        { email: 'member@example.com', token: '12345' }
       );
+      expect(res5.success).toBe(false);
+      expect(res5.errorType).toBe('invalid_format');
 
-      expect(result.success).toBe(false);
-      expect(result.errorType).toBe('invalid_format');
+      // Prueba con 7 dígitos
+      const res7 = await verifyLoginOtp(
+        {
+          auth: mockAuth as unknown as import('@supabase/supabase-js').SupabaseClient['auth'],
+          rpc: mockRpcClient,
+        },
+        { email: 'member@example.com', token: '1234567' }
+      );
+      expect(res7.success).toBe(false);
+      expect(res7.errorType).toBe('invalid_format');
+
+      // Prueba con letras
+      const resLetters = await verifyLoginOtp(
+        {
+          auth: mockAuth as unknown as import('@supabase/supabase-js').SupabaseClient['auth'],
+          rpc: mockRpcClient,
+        },
+        { email: 'member@example.com', token: 'abcdefgh' }
+      );
+      expect(resLetters.success).toBe(false);
+      expect(resLetters.errorType).toBe('invalid_format');
+
       expect(mockVerifyOtp).not.toHaveBeenCalled();
     });
   });
 
   // =========================================================================
-  // 5. LLAMADA EXACTA A verifyOtp CON type: 'email'
+  // 5. LLAMADA EXACTA A verifyOtp CON type: 'email' (6 u 8 dígitos)
   // =========================================================================
   describe('5. Llamada Exacta a verifyOtp({ email, token, type: "email" })', () => {
-    it('invoca verifyOtp con los argumentos requeridos por Supabase', async () => {
+    it('invoca verifyOtp con un código de 6 dígitos', async () => {
       const mockAuth = {
         verifyOtp: mockVerifyOtp.mockResolvedValueOnce({
           data: { user: { id: 'u-1', email: 'member@example.com' } },
@@ -271,7 +303,38 @@ describe('6-Digit OTP Authentication Flow (Etapa 5C-E)', () => {
         type: 'email',
       });
     });
+
+    it('invoca verifyOtp con un código de 8 dígitos completo y sin truncar', async () => {
+      const mockAuth = {
+        verifyOtp: mockVerifyOtp.mockResolvedValueOnce({
+          data: { user: { id: 'u-2', email: 'member@example.com' } },
+          error: null,
+        }),
+        signOut: mockSignOut,
+      };
+      const mockRpcClient = mockRpc.mockResolvedValueOnce({ data: true, error: null });
+
+      const result = await verifyLoginOtp(
+        {
+          auth: mockAuth as unknown as import('@supabase/supabase-js').SupabaseClient['auth'],
+          rpc: mockRpcClient,
+        },
+        {
+          email: 'member@example.com',
+          token: '87654321',
+        }
+      );
+
+      expect(result.success).toBe(true);
+      expect(mockVerifyOtp).toHaveBeenCalledTimes(1);
+      expect(mockVerifyOtp).toHaveBeenCalledWith({
+        email: 'member@example.com',
+        token: '87654321',
+        type: 'email',
+      });
+    });
   });
+
 
   // =========================================================================
   // 6. GESTIÓN DIFERENCIADA DE ERRORES: INCORRECTO, CADUCADO, RATE LIMIT, SERVICIO

@@ -74,15 +74,22 @@ describe('Login Page UI & Accessibility Contract (Etapa 5C-E)', () => {
   // =========================================================================
   // 2. CONTRATO DEL FORMULARIO OTP (PASO 2)
   // =========================================================================
-  it('validates OTP field specifications for iOS QuickType autocomplete', () => {
+  it('validates OTP field specifications for iOS QuickType autocomplete (6 or 8 digits)', () => {
     // Verificamos que la especificación de sanitizeOtp y regex cumpla estrictamente
-    // con el autocompletado de códigos de 6 dígitos de iOS:
-    const rawIosCode = ' 482910 ';
-    const sanitized = sanitizeOtp(rawIosCode);
+    // con el autocompletado de códigos de 6 u 8 dígitos de iOS:
+    const rawIosCode6 = ' 482910 ';
+    const sanitized6 = sanitizeOtp(rawIosCode6);
 
-    expect(sanitized).toBe('482910');
-    expect(isValidOtpFormat(sanitized)).toBe(true);
-    expect(sanitized.length).toBe(6);
+    expect(sanitized6).toBe('482910');
+    expect(isValidOtpFormat(sanitized6)).toBe(true);
+    expect(sanitized6.length).toBe(6);
+
+    const rawIosCode8 = ' 98765432 ';
+    const sanitized8 = sanitizeOtp(rawIosCode8);
+
+    expect(sanitized8).toBe('98765432');
+    expect(isValidOtpFormat(sanitized8)).toBe(true);
+    expect(sanitized8.length).toBe(8);
   });
 
   // =========================================================================

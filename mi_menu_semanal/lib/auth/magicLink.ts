@@ -10,7 +10,7 @@ export interface SendMagicLinkResult {
 
 /**
  * Envía un enlace de acceso (Magic Link / OTP) mediante Supabase Auth.
- * Mantenido temporalmente para compatibilidad durante la transición hacia OTP de 6 dígitos.
+ * Mantenido temporalmente para compatibilidad durante la transición hacia código OTP.
  *
  * Garantías de Seguridad:
  * 1. Establece obligatoriamente `shouldCreateUser: false` para impedir registros públicos.
