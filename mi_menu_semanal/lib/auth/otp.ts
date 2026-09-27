@@ -43,17 +43,17 @@ export function normalizeEmail(email: string): string {
 
 /**
  * Sanitiza el código OTP eliminando espacios y caracteres no numéricos,
- * limitando la longitud máxima a 6 caracteres.
+ * limitando la longitud máxima a 8 caracteres.
  */
 export function sanitizeOtp(token: string): string {
-  return (token || '').replace(/\D/g, '').slice(0, 6);
+  return (token || '').replace(/\D/g, '').slice(0, 8);
 }
 
 /**
- * Valida si el código cumple estrictamente con el formato de 6 dígitos numéricos.
+ * Valida si el código cumple estrictamente con el formato de 6 u 8 dígitos numéricos.
  */
 export function isValidOtpFormat(token: string): boolean {
-  return /^\d{6}$/.test(token);
+  return /^(?:\d{6}|\d{8})$/.test(token);
 }
 
 /**
@@ -151,7 +151,7 @@ export function classifyRequestOtpError(
 export function getOtpErrorMessage(type: OtpErrorType): string {
   switch (type) {
     case 'invalid_format':
-      return 'Introduce el código de 6 dígitos numéricos.';
+      return 'Introduce un código de acceso numérico válido (6 u 8 dígitos).';
     case 'invalid_code':
       return 'El código introducido no es correcto. Compruébalo e inténtalo de nuevo.';
     case 'expired_code':
@@ -220,7 +220,7 @@ export async function requestLoginOtp(
 }
 
 /**
- * Verifica un código OTP de 6 dígitos mediante Supabase Auth (verifyOtp).
+ * Verifica un código OTP de 6 u 8 dígitos mediante Supabase Auth (verifyOtp).
  *
  * Garantías de Seguridad:
  * 1. Normaliza el correo y sanitiza el token numérico.

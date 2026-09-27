@@ -114,7 +114,7 @@ function LoginForm() {
     }
   };
 
-  // Paso 2: Verificación del código OTP de 6 dígitos
+  // Paso 2: Verificación del código OTP (6 u 8 dígitos)
   const handleOtpSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -224,8 +224,8 @@ function LoginForm() {
           </h1>
           <p className="text-xs text-on-surface-variant font-body leading-relaxed">
             {step === 'otp'
-              ? 'Introduce el código de 6 dígitos recibido por correo.'
-              : 'Menú Semanal V2 — Introduce tu correo para recibir un código de acceso de seis dígitos.'}
+              ? 'Introduce el código recibido por correo.'
+              : 'Menú Semanal V2 — Introduce tu correo para recibir un código de acceso.'}
           </p>
         </div>
 
@@ -302,7 +302,7 @@ function LoginForm() {
             {/* Aviso informativo neutro y aviso de Spam */}
             <div className="bg-surface-container-low text-on-surface p-3.5 rounded-xl border border-outline-variant/30 flex flex-col gap-1 text-center">
               <p className="text-xs font-body text-on-surface-variant leading-relaxed">
-                Si tu correo está autorizado, recibirás un código de 6 dígitos en unos instantes.
+                Si tu correo está autorizado, recibirás un código de acceso en unos instantes.
               </p>
               <p className="text-[11px] font-body text-outline leading-tight">
                 ¿No lo ves en tu bandeja? Revisa tu carpeta de <strong>Spam</strong> o correo no deseado.
@@ -314,13 +314,14 @@ function LoginForm() {
                 htmlFor="otp-input"
                 className="text-xs font-medium text-on-surface-variant font-body text-center"
               >
-                Código de verificación (6 dígitos)
+                Código de verificación
               </label>
               {/*
                 Optimizaciones estrictas para Safari en iPhone:
                 - text-[22px] (>= 16px) previene zoom automático indeseado
                 - inputMode="numeric" abre teclado numérico en móvil
                 - autoComplete="one-time-code" activa el autocompletado nativo de iOS
+                - maxLength={8} admite códigos de 6 u 8 dígitos
                 - min-h-[48px] garantiza objetivo táctil accesible (Apple HIG >= 44pt)
               */}
               <input
@@ -329,26 +330,26 @@ function LoginForm() {
                 inputMode="numeric"
                 autoComplete="one-time-code"
                 pattern="[0-9]*"
-                maxLength={6}
+                maxLength={8}
                 required
                 autoFocus
                 disabled={isVerifying}
                 value={otp}
                 onChange={(e) => {
-                  const cleaned = e.target.value.replace(/\D/g, '').slice(0, 6);
+                  const cleaned = sanitizeOtp(e.target.value);
                   setOtp(cleaned);
                 }}
-                placeholder="······"
-                aria-label="Código de verificación de 6 dígitos"
+                placeholder="········"
+                aria-label="Código de verificación"
                 className="w-full text-center font-mono text-[22px] tracking-[0.35em] py-2.5 px-4 rounded-xl border border-outline-variant bg-surface text-on-surface placeholder:text-outline/40 focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary disabled:opacity-50 font-body transition-colors min-h-[48px]"
               />
             </div>
 
-            {/* Botón Verificar código */}
+            {/* Botón Verificar código: se habilita exclusivamente con 6 u 8 dígitos válidos */}
             <button
               id="verify-otp-button"
               type="submit"
-              disabled={isVerifying || otp.replace(/\D/g, '').length !== 6}
+              disabled={isVerifying || !isValidOtpFormat(otp)}
               className="w-full py-3 px-4 rounded-xl bg-primary text-on-primary font-headline font-bold text-sm hover:opacity-90 active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2 cursor-pointer shadow-sm min-h-[44px]"
             >
               {isVerifying ? (
