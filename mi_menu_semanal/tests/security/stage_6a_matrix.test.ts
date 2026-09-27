@@ -94,8 +94,7 @@ describe('Stage 6A Supabase Lockdown Security Matrix Verification (Hardened)', (
           ('other-bucket', 'other-bucket', false, 5242880, ARRAY['image/jpeg'])
       ON CONFLICT (id) DO NOTHING;
 
-      -- 3. Base public tables and sequences
-      CREATE SEQUENCE IF NOT EXISTS public.test_aux_seq;
+      -- 3. Base public tables (IDs are client-generated TEXT, zero sequence dependency)
 
       CREATE TABLE IF NOT EXISTS public.recipes (
           id TEXT PRIMARY KEY,
@@ -204,6 +203,24 @@ describe('Stage 6A Supabase Lockdown Security Matrix Verification (Hardened)', (
       await expect(db.query('SELECT * FROM public.shared_state')).rejects.toThrow();
     });
 
+    it('bloquea INSERT directo en public.shared_state con error 42501', async () => {
+      await expect(
+        db.query("INSERT INTO public.shared_state (state_key, payload) VALUES ('planner', '{}'::jsonb)")
+      ).rejects.toThrow();
+    });
+
+    it('bloquea UPDATE directo en public.shared_state con error 42501', async () => {
+      await expect(
+        db.query("UPDATE public.shared_state SET payload = '{}'::jsonb WHERE state_key = 'planner'")
+      ).rejects.toThrow();
+    });
+
+    it('bloquea DELETE directo en public.shared_state con error 42501', async () => {
+      await expect(
+        db.query("DELETE FROM public.shared_state WHERE state_key = 'planner'")
+      ).rejects.toThrow();
+    });
+
     it('bloquea SELECT en public.app_members con error 42501', async () => {
       await expect(db.query('SELECT * FROM public.app_members')).rejects.toThrow();
     });
@@ -216,10 +233,6 @@ describe('Stage 6A Supabase Lockdown Security Matrix Verification (Hardened)', (
       await expect(
         db.query("SELECT * FROM public.update_shared_state('planner', '{}'::jsonb, 1)")
       ).rejects.toThrow();
-    });
-
-    it('bloquea uso de secuencias con error 42501', async () => {
-      await expect(db.query("SELECT nextval('public.test_aux_seq')")).rejects.toThrow();
     });
 
     it('bloquea subida de objetos en storage.objects', async () => {
@@ -268,9 +281,27 @@ describe('Stage 6A Supabase Lockdown Security Matrix Verification (Hardened)', (
       expect(res.rows.length).toBe(0);
     });
 
-    it('SELECT en shared_state devuelve exactamente 0 filas', async () => {
+    it('SELECT en shared_state devuelve exactamente 0 filas por RLS', async () => {
       const res = await db.query('SELECT * FROM public.shared_state');
       expect(res.rows.length).toBe(0);
+    });
+
+    it('INSERT directo en shared_state es denegado con error 42501 (sin privilegios de tabla)', async () => {
+      await expect(
+        db.query("INSERT INTO public.shared_state (state_key, payload) VALUES ('planner', '{}'::jsonb)")
+      ).rejects.toThrow();
+    });
+
+    it('UPDATE directo en shared_state es denegado con error 42501 (sin privilegios de tabla)', async () => {
+      await expect(
+        db.query("UPDATE public.shared_state SET payload = '{}'::jsonb WHERE state_key = 'planner'")
+      ).rejects.toThrow();
+    });
+
+    it('DELETE directo en shared_state es denegado con error 42501 (sin privilegios de tabla)', async () => {
+      await expect(
+        db.query("DELETE FROM public.shared_state WHERE state_key = 'planner'")
+      ).rejects.toThrow();
     });
 
     it('update_shared_state() RPC lanza excepción 42501 (Usuario no autorizado)', async () => {
@@ -289,10 +320,6 @@ describe('Stage 6A Supabase Lockdown Security Matrix Verification (Hardened)', (
       ).rejects.toThrow();
     });
 
-    it('bloquea uso de secuencias con error 42501', async () => {
-      await expect(db.query("SELECT nextval('public.test_aux_seq')")).rejects.toThrow();
-    });
-
     it('storage.objects INSERT en recipe-images es denegado por RLS', async () => {
       await expect(
         db.query("INSERT INTO storage.objects (bucket_id, name) VALUES ('recipe-images', 'hack.jpg')")
@@ -301,10 +328,10 @@ describe('Stage 6A Supabase Lockdown Security Matrix Verification (Hardened)', (
   });
 
   // ---------------------------------------------------------------------------
-  // 3. MIEMBROS AUTORIZADOS (A, B, C) - PARIDAD Y BLINDAJE DE app_members
+  // 3. MIEMBROS AUTORIZADOS (A, B, C) - PARIDAD, MUTACIÓN RESTRINGIDA Y RPC OCC
   // ---------------------------------------------------------------------------
   describe('Miembros Autorizados (Unidad Familiar Privada)', () => {
-    it('Miembro A: is_app_member() devuelve TRUE, pero NO puede listar public.app_members', async () => {
+    it('Miembro A: SELECT permitido, mutación directa denegada (42501), RPC atómica permitida', async () => {
       await asSession('authenticated', memberA_id, 'member_a@example.com');
 
       // 1. is_app_member() funciona vía SECURITY DEFINER
@@ -319,7 +346,7 @@ describe('Stage 6A Supabase Lockdown Security Matrix Verification (Hardened)', (
         db.query(`INSERT INTO public.app_members (user_id) VALUES ('${intruder_id}')`)
       ).rejects.toThrow();
 
-      // 4. Consulta y creación de recetas funciona
+      // 4. Consulta y creación de recetas funciona SIN secuencias (ID de texto cliente)
       const recs = await db.query('SELECT * FROM public.recipes');
       expect(recs.rows.length).toBeGreaterThanOrEqual(1);
 
@@ -327,20 +354,41 @@ describe('Stage 6A Supabase Lockdown Security Matrix Verification (Hardened)', (
       const checkA = await db.query<{ title: string }>("SELECT title FROM public.recipes WHERE id = 'rec-a-1'");
       expect(checkA.rows[0].title).toBe('Gazpacho de Miembro A');
 
-      // 5. Actualizar shared_state vía RPC
-      const rpcRes = await db.query<{ success: boolean; current_version: number }>(
+      // 5. SELECT sobre public.shared_state PERMITIDO
+      const stateRows = await db.query<{ state_key: string; version: number }>(
+        "SELECT state_key, version FROM public.shared_state WHERE state_key = 'planner'"
+      );
+      expect(stateRows.rows.length).toBe(1);
+      expect(stateRows.rows[0].version).toBe(1);
+
+      // 6. Mutaciones directas sobre public.shared_state DENEGADAS con 42501
+      await expect(
+        db.query("INSERT INTO public.shared_state (state_key, payload) VALUES ('planner', '{}'::jsonb)")
+      ).rejects.toThrow();
+
+      await expect(
+        db.query("UPDATE public.shared_state SET payload = '{\"hacked\": true}'::jsonb WHERE state_key = 'planner'")
+      ).rejects.toThrow();
+
+      await expect(
+        db.query("DELETE FROM public.shared_state WHERE state_key = 'planner'")
+      ).rejects.toThrow();
+
+      // 7. Actualización atómica de shared_state exclusivamente vía RPC
+      const rpcRes = await db.query<{ success: boolean; current_version: number; current_payload: unknown }>(
         "SELECT * FROM public.update_shared_state('planner', '{\"lun\": \"rec-a-1\"}'::jsonb, 1)"
       );
       expect(rpcRes.rows[0].success).toBe(true);
       expect(rpcRes.rows[0].current_version).toBe(2);
+      expect(rpcRes.rows[0].current_payload).toEqual({ lun: 'rec-a-1' });
 
-      // 6. Subir imagen a recipe-images
+      // 8. Subir imagen a recipe-images
       await db.query("INSERT INTO storage.objects (bucket_id, name) VALUES ('recipe-images', 'gazpacho.jpg')");
       const imgRes = await db.query<{ name: string }>("SELECT name FROM storage.objects WHERE bucket_id = 'recipe-images'");
       expect(imgRes.rows.some((r) => r.name === 'gazpacho.jpg')).toBe(true);
     });
 
-    it('Miembro B: acceso compartido a recetas de A y bloqueo de app_members', async () => {
+    it('Miembro B: paridad total, mutación directa denegada, mutación RPC permitida', async () => {
       // Setup estado previo como A
       await asSession('authenticated', memberA_id, 'member_a@example.com');
       await db.query("INSERT INTO public.recipes (id, title) VALUES ('rec-shared-1', 'Receta Base')");
@@ -353,23 +401,31 @@ describe('Stage 6A Supabase Lockdown Security Matrix Verification (Hardened)', (
       // B tampoco puede listar app_members
       await expect(db.query('SELECT * FROM public.app_members')).rejects.toThrow();
 
-      // B ve la receta creada por A
+      // B ve la receta creada por A y la modifica
       const readRes = await db.query<{ title: string }>("SELECT title FROM public.recipes WHERE id = 'rec-shared-1'");
       expect(readRes.rows[0].title).toBe('Receta Base');
 
-      // B modifica la receta de A
       await db.query("UPDATE public.recipes SET title = 'Receta Modificada por B' WHERE id = 'rec-shared-1'");
       const modRes = await db.query<{ title: string }>("SELECT title FROM public.recipes WHERE id = 'rec-shared-1'");
       expect(modRes.rows[0].title).toBe('Receta Modificada por B');
 
-      // B actualiza shopping_list
-      const rpcRes = await db.query<{ success: boolean }>(
+      // B tiene SELECT sobre shared_state pero mutación directa denegada
+      const stateB = await db.query('SELECT * FROM public.shared_state');
+      expect(stateB.rows.length).toBe(4);
+
+      await expect(
+        db.query("UPDATE public.shared_state SET payload = '[]'::jsonb WHERE state_key = 'shopping_list'")
+      ).rejects.toThrow();
+
+      // B actualiza shopping_list vía RPC con OCC
+      const rpcRes = await db.query<{ success: boolean; current_version: number }>(
         "SELECT * FROM public.update_shared_state('shopping_list', '[{\"item\": \"Tomates\"}]'::jsonb, 1)"
       );
       expect(rpcRes.rows[0].success).toBe(true);
+      expect(rpcRes.rows[0].current_version).toBe(2);
     });
 
-    it('Miembro C: permisos idénticos y bloqueo de app_members', async () => {
+    it('Miembro C: permisos idénticos, mutación directa denegada, bloqueo de app_members', async () => {
       await asSession('authenticated', memberC_id, 'member_c@example.com');
 
       const memberCheck = await db.query<{ is_app_member: boolean }>('SELECT public.is_app_member()');
@@ -378,20 +434,174 @@ describe('Stage 6A Supabase Lockdown Security Matrix Verification (Hardened)', (
       // C tampoco puede listar app_members
       await expect(db.query('SELECT * FROM public.app_members')).rejects.toThrow();
 
-      // NO puede insertar en app_members
+      // NO puede insertar ni borrar en app_members
       await expect(
         db.query(`INSERT INTO public.app_members (user_id) VALUES ('${intruder_id}')`)
       ).rejects.toThrow();
 
-      // NO puede borrar miembros
       await expect(
         db.query(`DELETE FROM public.app_members WHERE user_id = '${memberA_id}'`)
       ).rejects.toThrow();
+
+      // C no puede mutar directamente shared_state
+      await expect(
+        db.query("UPDATE public.shared_state SET payload = '[]'::jsonb WHERE state_key = 'favorites'")
+      ).rejects.toThrow();
+
+      // C actualiza favorites vía RPC con OCC
+      const rpcRes = await db.query<{ success: boolean; current_version: number }>(
+        "SELECT * FROM public.update_shared_state('favorites', '[\"rec-initial-1\"]'::jsonb, 1)"
+      );
+      expect(rpcRes.rows[0].success).toBe(true);
+      expect(rpcRes.rows[0].current_version).toBe(2);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // 3.1 CONTRATOS DE update_shared_state() (OCC, TIPADO, ATOMICIDAD, DEFINER)
+  // ---------------------------------------------------------------------------
+  describe('Contratos de update_shared_state() (OCC, Tipos, Atomicidad y Metadatos)', () => {
+    it('verifica en el catálogo que la función tiene SECURITY DEFINER, search_path fijo y propietario postgres', async () => {
+      await db.exec('SET ROLE postgres;');
+      await db.exec("SELECT set_config('request.jwt.claims', '', false);");
+
+      const procInfo = await db.query<{
+        prosecdef: boolean;
+        proconfig: string[] | null;
+        owner_name: string;
+      }>(`
+        SELECT p.prosecdef, p.proconfig, r.rolname as owner_name
+        FROM pg_proc p
+        JOIN pg_roles r ON p.proowner = r.oid
+        WHERE p.proname = 'update_shared_state';
+      `);
+
+      expect(procInfo.rows.length).toBe(1);
+      expect(procInfo.rows[0].prosecdef).toBe(true); // SECURITY DEFINER
+      expect(procInfo.rows[0].owner_name).toBe('postgres'); // Propietario administrativo controlado
+      const configStr = (procInfo.rows[0].proconfig || []).join(',');
+      expect(configStr).toContain('search_path=public, pg_temp'); // search_path seguro
     });
 
-    it('Secuencias: ningún miembro autenticado puede ejecutar secuencias en public', async () => {
+    it('verifica permisos exactos en catálogo: anon = sin execute, authenticated = con execute', async () => {
+      await db.exec('SET ROLE postgres;');
+      await db.exec("SELECT set_config('request.jwt.claims', '', false);");
+
+      const privCheck = await db.query<{
+        anon_exec: boolean;
+        auth_exec: boolean;
+      }>(`
+        SELECT
+          has_function_privilege('anon', 'public.update_shared_state(text,jsonb,integer)', 'EXECUTE') as anon_exec,
+          has_function_privilege('authenticated', 'public.update_shared_state(text,jsonb,integer)', 'EXECUTE') as auth_exec;
+      `);
+
+      expect(privCheck.rows[0].anon_exec).toBe(false);
+      expect(privCheck.rows[0].auth_exec).toBe(true);
+    });
+
+    it('actualización con versión esperada correcta incrementa la versión una sola vez', async () => {
       await asSession('authenticated', memberA_id, 'member_a@example.com');
-      await expect(db.query("SELECT nextval('public.test_aux_seq')")).rejects.toThrow();
+
+      // Estado inicial freezer tiene versión 1
+      const initial = await db.query<{ version: number }>(
+        "SELECT version FROM public.shared_state WHERE state_key = 'freezer'"
+      );
+      expect(initial.rows[0].version).toBe(1);
+
+      // Actualizar con versión esperada 1
+      const res = await db.query<{ success: boolean; current_version: number }>(
+        "SELECT * FROM public.update_shared_state('freezer', '[{\"item\": \"Pollo congelado\"}]'::jsonb, 1)"
+      );
+
+      expect(res.rows[0].success).toBe(true);
+      expect(res.rows[0].current_version).toBe(2);
+
+      // Verificación directa en tabla de que la versión es exactamente 2
+      const after = await db.query<{ version: number; payload: unknown }>(
+        "SELECT version, payload FROM public.shared_state WHERE state_key = 'freezer'"
+      );
+      expect(after.rows[0].version).toBe(2);
+      expect(after.rows[0].payload).toEqual([{ item: 'Pollo congelado' }]);
+    });
+
+    it('versión obsoleta produce conflicto (success = false) sin modificar el payload ni la versión', async () => {
+      await asSession('authenticated', memberA_id, 'member_a@example.com');
+
+      // Avanzamos 'freezer' a versión 2
+      await db.query(
+        "SELECT * FROM public.update_shared_state('freezer', '[{\"item\": \"Helado\"}]'::jsonb, 1)"
+      );
+
+      // Ahora otro cliente con versión obsoleta (esperando 1 en vez de 2) intenta actualizar
+      const conflictRes = await db.query<{
+        success: boolean;
+        current_version: number;
+        current_payload: unknown;
+      }>(
+        "SELECT * FROM public.update_shared_state('freezer', '[{\"item\": \"Sobrescritura Inválida\"}]'::jsonb, 1)"
+      );
+
+      // Debe retornar success = false con la versión actual (2) y payload actual intacto
+      expect(conflictRes.rows[0].success).toBe(false);
+      expect(conflictRes.rows[0].current_version).toBe(2);
+      expect(conflictRes.rows[0].current_payload).toEqual([{ item: 'Helado' }]);
+
+      // Verificar en la tabla que NO cambió la versión ni el payload
+      const checkState = await db.query<{ version: number; payload: unknown }>(
+        "SELECT version, payload FROM public.shared_state WHERE state_key = 'freezer'"
+      );
+      expect(checkState.rows[0].version).toBe(2);
+      expect(checkState.rows[0].payload).toEqual([{ item: 'Helado' }]);
+    });
+
+    it('rechaza claves desconocidas ajenas a la lista cerrada permitida', async () => {
+      await asSession('authenticated', memberA_id, 'member_a@example.com');
+
+      await expect(
+        db.query("SELECT * FROM public.update_shared_state('clave_maliciosa', '{}'::jsonb, 1)")
+      ).rejects.toThrow(/Clave de estado compartida no permitida/);
+    });
+
+    it('rechaza payloads inválidos según el tipo exigido por clave', async () => {
+      await asSession('authenticated', memberA_id, 'member_a@example.com');
+
+      // planner exige objeto JSON, no array
+      await expect(
+        db.query("SELECT * FROM public.update_shared_state('planner', '[]'::jsonb, 1)")
+      ).rejects.toThrow(/El payload para planner debe ser un objeto JSON/);
+
+      // shopping_list exige array, no objeto
+      await expect(
+        db.query("SELECT * FROM public.update_shared_state('shopping_list', '{\"item\": 1}'::jsonb, 1)")
+      ).rejects.toThrow(/El payload para shopping_list debe ser un array JSON/);
+
+      // favorites exige array de strings
+      await expect(
+        db.query("SELECT * FROM public.update_shared_state('favorites', '[123, 456]'::jsonb, 1)")
+      ).rejects.toThrow(/Todos los elementos de favorites deben ser cadenas de texto/);
+    });
+
+    it('fallo dentro de la función o transacción no produce actualización parcial ni incrementa versión', async () => {
+      await asSession('authenticated', memberA_id, 'member_a@example.com');
+
+      // Comprobar estado inicial de favorites
+      const initFav = await db.query<{ version: number; payload: unknown }>(
+        "SELECT version, payload FROM public.shared_state WHERE state_key = 'favorites'"
+      );
+      const initVer = initFav.rows[0].version;
+
+      // Intentar actualización con payload que contiene un elemento inválido en medio
+      await expect(
+        db.query("SELECT * FROM public.update_shared_state('favorites', '[\"rec-1\", 999]'::jsonb, 1)")
+      ).rejects.toThrow(/Todos los elementos de favorites deben ser cadenas de texto/);
+
+      // Verificar que el estado no sufrió mutación parcial
+      const postFav = await db.query<{ version: number; payload: unknown }>(
+        "SELECT version, payload FROM public.shared_state WHERE state_key = 'favorites'"
+      );
+      expect(postFav.rows[0].version).toBe(initVer);
+      expect(postFav.rows[0].payload).toEqual(initFav.rows[0].payload);
     });
   });
 
@@ -498,7 +708,6 @@ describe('Stage 6A Supabase Lockdown Security Matrix Verification (Hardened)', (
       await expect(db.query('SELECT * FROM public.categories')).rejects.toThrow();
       await expect(db.query('SELECT * FROM public.shared_state')).rejects.toThrow();
       await expect(db.query('SELECT * FROM public.app_members')).rejects.toThrow();
-      await expect(db.query("SELECT nextval('public.test_aux_seq')")).rejects.toThrow();
 
       // 2. authenticated no-miembro tiene acceso de emergencia
       await asSession('authenticated', intruder_id, 'intruder@example.com');

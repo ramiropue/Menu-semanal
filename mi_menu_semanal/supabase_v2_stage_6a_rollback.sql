@@ -37,7 +37,6 @@ REVOKE ALL PRIVILEGES ON TABLE public.recipes FROM anon, PUBLIC;
 REVOKE ALL PRIVILEGES ON TABLE public.categories FROM anon, PUBLIC;
 REVOKE ALL PRIVILEGES ON TABLE public.shared_state FROM anon, PUBLIC;
 REVOKE ALL PRIVILEGES ON TABLE public.app_members FROM anon, PUBLIC;
-REVOKE ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public FROM anon, PUBLIC;
 
 -- ==============================================================================
 -- 2. RETIRADA DE POLÍTICAS BASADAS EN is_app_member()
@@ -92,7 +91,18 @@ CREATE POLICY "Emergency authenticated categories access" ON public.categories
     USING (auth.uid() IS NOT NULL)
     WITH CHECK (auth.uid() IS NOT NULL);
 
--- C) shared_state: acceso para cualquier usuario autenticado (sin DELETE)
+-- C) shared_state (DEGRADACIÓN TEMPORAL DE EMERGENCIA)
+-- ==============================================================================
+-- ⚠️ AVISO CRÍTICO DE SEGURIDAD Y DEGRADACIÓN TEMPORAL ⚠️
+-- La concesión de INSERT y UPDATE directos a 'authenticated' desactiva por completo
+-- el control optimista de concurrencia (OCC) y la validación de tipos en servidor
+-- de update_shared_state().
+-- Este modo constituye una degradación temporal de contingencia operativa extrema
+-- (p. ej., si falla la resolución RPC en producción) y EXIGE RETIRADA INMEDIATA
+-- una vez superada la emergencia.
+-- ==============================================================================
+GRANT SELECT, INSERT, UPDATE ON TABLE public.shared_state TO authenticated;
+
 CREATE POLICY "Emergency authenticated shared_state select" ON public.shared_state
     FOR SELECT TO authenticated
     USING (auth.uid() IS NOT NULL);
@@ -140,10 +150,9 @@ CREATE POLICY "Emergency authenticated storage delete" ON storage.objects
     );
 
 -- ==============================================================================
--- 4. SEGURIDAD DE app_members Y SECUENCIAS
+-- 4. SEGURIDAD DE app_members
 -- ==============================================================================
 -- app_members permanece con RLS habilitada y CERO privilegios para authenticated ni anon.
 REVOKE ALL PRIVILEGES ON TABLE public.app_members FROM anon, authenticated, PUBLIC;
-REVOKE ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public FROM anon, authenticated, PUBLIC;
 
 COMMIT;

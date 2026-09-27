@@ -1,6 +1,6 @@
 -- supabase_v2_stage_6a_lockdown.sql
 -- ==============================================================================
--- ETAPA 6A: CIERRE DE SEGURIDAD RLS Y PRIVATIZACIÓN DE ACCESO (ENDURECIDO)
+-- ETAPA 6A: CIERRE DE SEGURIDAD RLS Y PRIVATIZACIÓN DE ACCESO (FINAL HARDENED)
 -- Menú Semanal V2: Cierre de Políticas Públicas V1 y Restricción a app_members
 -- ==============================================================================
 -- ESTADO: BORRADOR PREPARADO PARA REVISIÓN TÉCNICA (NO EJECUTAR EN SUPABASE REMOTO).
@@ -15,26 +15,33 @@
 --    - La lista de UUIDs de miembros es inaccesible desde el cliente.
 --    - La función segura is_app_member() (SECURITY DEFINER) es el ÚNICO mecanismo
 --      utilizado por la aplicación para verificar membresía sin exponer la tabla.
--- 3. UNIDAD FAMILIAR IGUALITARIA: Todos los miembros en public.app_members
+-- 3. MUTACIÓN EXCLUSIVA DE shared_state VÍA RPC ATÓMICO (OCC):
+--    - authenticated tiene ÚNICAMENTE privilegio SELECT sobre public.shared_state.
+--    - Se revocan totalmente INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES y TRIGGER
+--      sobre shared_state a authenticated, anon y PUBLIC.
+--    - La función public.update_shared_state() se convierte en SECURITY DEFINER
+--      con search_path fijo (public, pg_temp), validación estricta de tipos JSON,
+--      lista cerrada de claves, verificación de membresía y control optimista de versión.
+--    - Cualquier intento de INSERT/UPDATE directo a shared_state devuelve 42501.
+-- 4. UNIDAD FAMILIAR IGUALITARIA: Todos los miembros en public.app_members
 --    tienen idénticos permisos sobre recetas, categorías y estado compartido.
--- 4. ESTADO COMPARTIDO PROTEGIDO: shared_state es accesible solo para miembros;
---    las mutaciones se realizan exclusivamente mediante public.update_shared_state().
--- 5. SECUENCIAS Y PRIVILEGIOS AUXILIARES REVOCADOS:
---    - Revocación total de secuencias en el esquema public a anon, authenticated y PUBLIC.
---    - Las tablas recipes y categories emplean identificadores de texto (TEXT), por
---      lo que las operaciones de inserción no requieren USAGE ni SELECT sobre secuencias.
+-- 5. ALCANCE DE SECUENCIAS:
+--    - Las tablas recipes y categories emplean identificadores TEXT generados en cliente;
+--      no requieren secuencias. No se alteran secuencias ajenas al alcance.
 -- 6. STORAGE PROTEGIDO (storage.objects):
 --    - Políticas separadas por operación (SELECT, INSERT, UPDATE, DELETE) en recipe-images.
 --    - Restricción estricta a bucket_id = 'recipe-images' AND public.is_app_member().
 --    - Cero acceso a otros buckets.
 --    - El bucket permanece con public = true a nivel de storage.buckets para no romper
 --      las URLs públicas cargadas directamente en etiquetas <img> del frontend V2.
--- 7. JUSTIFICACIÓN DE ROW LEVEL SECURITY (ENABLE vs FORCE):
---    - Se utiliza ALTER TABLE ... ENABLE ROW LEVEL SECURITY en todas las tablas.
---    - NO se utiliza FORCE ROW LEVEL SECURITY para permitir que el rol administrativo
---      (service_role / postgres) continúe ejecutando backups, seeds y tareas de
---      mantenimiento sin verse restringido por el contexto JWT de cliente, mientras
---      que los roles anon y authenticated permanecen 100% sujetos a RLS.
+-- 7. JUSTIFICACIÓN TÉCNICA DE ROW LEVEL SECURITY (ENABLE vs FORCE):
+--    - Los roles de cliente en Supabase ('anon' y 'authenticated') no son propietarios
+--      de las tablas (el propietario es 'postgres') y no poseen el atributo BYPASSRLS.
+--    - Por consiguiente, ENABLE ROW LEVEL SECURITY es 100% suficiente y estricto.
+--    - Los roles administrativos con BYPASSRLS ('service_role', 'supabase_admin')
+--      eluden RLS nativamente en PostgreSQL.
+--    - Se omite FORCE ROW LEVEL SECURITY para no imponer filtrado RLS involuntario
+--      al propietario ('postgres') en scripts de mantenimiento y migraciones administrativas.
 -- 8. TRANSACCIONALIDAD E IDEMPOTENCIA ESTRICTA:
 --    - Todo se ejecuta en un bloque BEGIN ... COMMIT.
 --    - Verificación previa de existencia de tablas antes de aplicar cambios.
@@ -72,10 +79,6 @@ REVOKE ALL PRIVILEGES ON TABLE public.categories FROM anon, PUBLIC;
 REVOKE ALL PRIVILEGES ON TABLE public.shared_state FROM anon, PUBLIC;
 REVOKE ALL PRIVILEGES ON TABLE public.app_members FROM anon, PUBLIC;
 
--- Revocar privilegios sobre todas las secuencias en public a anon y PUBLIC
-REVOKE ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public FROM anon, PUBLIC;
-ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE ALL ON SEQUENCES FROM anon, PUBLIC;
-
 -- Asegurar que el esquema public permite USAGE pero no CREATE para anon y authenticated
 GRANT USAGE ON SCHEMA public TO anon, authenticated;
 REVOKE CREATE ON SCHEMA public FROM anon, authenticated, PUBLIC;
@@ -88,21 +91,20 @@ REVOKE CREATE ON SCHEMA public FROM anon, authenticated, PUBLIC;
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.recipes TO authenticated;
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.categories TO authenticated;
 
--- Otorgar privilegios sobre shared_state (SELECT, INSERT, UPDATE; prohibir DELETE)
-GRANT SELECT, INSERT, UPDATE ON TABLE public.shared_state TO authenticated;
-REVOKE DELETE ON TABLE public.shared_state FROM authenticated;
+-- ENDURECIMIENTO DE shared_state:
+-- authenticated tiene ÚNICAMENTE privilegio SELECT sobre public.shared_state.
+-- Prohibición absoluta de INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES y TRIGGER.
+-- Cualquier mutación directa desde cliente resultará en error 42501.
+REVOKE ALL PRIVILEGES ON TABLE public.shared_state FROM anon, authenticated, PUBLIC;
+GRANT SELECT ON TABLE public.shared_state TO authenticated;
 
 -- ENDURECIMIENTO DE app_members:
--- Revocación total de cualquier privilegio directo a authenticated.
+-- Revocación total de cualquier privilegio directo a authenticated, anon y PUBLIC.
 -- La tabla es inaccesible desde clientes; la membresía se comprueba solo vía is_app_member().
-REVOKE ALL PRIVILEGES ON TABLE public.app_members FROM authenticated;
-
--- Revocar acceso a secuencias para authenticated (no se requieren secuencias en V2)
-REVOKE ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public FROM authenticated;
-ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE ALL ON SEQUENCES FROM authenticated;
+REVOKE ALL PRIVILEGES ON TABLE public.app_members FROM anon, authenticated, PUBLIC;
 
 -- ==============================================================================
--- SECCIÓN 3: VERIFICACIÓN Y ASEGURAMIENTO DE FUNCIONES DE SEGURIDAD
+-- SECCIÓN 3: FUNCIONES DE SEGURIDAD (is_app_member Y update_shared_state)
 -- ==============================================================================
 
 -- 3.1 Función de verificación de membresía (is_app_member)
@@ -125,16 +127,120 @@ $$;
 REVOKE ALL ON FUNCTION public.is_app_member() FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.is_app_member() TO authenticated;
 
--- 3.2 Permisos sobre update_shared_state
-REVOKE ALL ON FUNCTION public.update_shared_state(TEXT, JSONB, INTEGER) FROM PUBLIC, anon;
+-- 3.2 Función de actualización atómica de shared_state con OCC (update_shared_state)
+-- Convertida en SECURITY DEFINER para permitir la actualización de public.shared_state
+-- sin conceder privilegios directos de UPDATE/INSERT al rol authenticated.
+CREATE OR REPLACE FUNCTION public.update_shared_state(
+    p_key TEXT,
+    p_payload JSONB,
+    p_expected_version INTEGER
+)
+RETURNS TABLE (
+    success BOOLEAN,
+    current_version INTEGER,
+    current_payload JSONB,
+    updated_at TIMESTAMPTZ
+)
+LANGUAGE plpgsql
+SECURITY DEFINER -- Ejecuta con privilegios del propietario (postgres) para actualizar shared_state
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+    v_current_version INTEGER;
+    v_current_payload JSONB;
+    v_updated_at TIMESTAMPTZ;
+    v_elem JSONB;
+BEGIN
+    -- 0. Comprobación estricta de membresía antes de procesar el payload o consultar la fila
+    IF NOT public.is_app_member() THEN
+        RAISE EXCEPTION 'Usuario no autorizado para modificar shared_state'
+            USING ERRCODE = '42501';
+    END IF;
+
+    -- 1. Validar lista cerrada de claves permitidas
+    IF p_key NOT IN ('planner', 'freezer', 'shopping_list', 'favorites') THEN
+        RAISE EXCEPTION 'Clave de estado compartida no permitida: %', p_key;
+    END IF;
+
+    -- 2. Validación estricta de payloads en servidor
+    IF p_payload IS NULL THEN
+        RAISE EXCEPTION 'El payload no puede ser NULL para la clave: %', p_key;
+    END IF;
+
+    IF p_key = 'planner' THEN
+        IF jsonb_typeof(p_payload) <> 'object' THEN
+            RAISE EXCEPTION 'El payload para planner debe ser un objeto JSON (recibido %)', jsonb_typeof(p_payload);
+        END IF;
+    ELSE
+        -- freezer, shopping_list y favorites deben ser arrays
+        IF jsonb_typeof(p_payload) <> 'array' THEN
+            RAISE EXCEPTION 'El payload para % debe ser un array JSON (recibido %)', p_key, jsonb_typeof(p_payload);
+        END IF;
+
+        -- favorites exige que cada elemento sea una cadena de texto (string)
+        IF p_key = 'favorites' THEN
+            FOR v_elem IN SELECT * FROM jsonb_array_elements(p_payload) LOOP
+                IF jsonb_typeof(v_elem) <> 'string' THEN
+                    RAISE EXCEPTION 'Todos los elementos de favorites deben ser cadenas de texto (recibido %)', jsonb_typeof(v_elem);
+                END IF;
+            END LOOP;
+        END IF;
+    END IF;
+
+    -- 3. Bloqueo pesimista de fila durante la transacción para serializar escrituras concurrentes
+    SELECT version, payload, shared_state.updated_at
+    INTO v_current_version, v_current_payload, v_updated_at
+    FROM public.shared_state
+    WHERE state_key = p_key
+    FOR UPDATE;
+
+    -- Si la fila no existiera (error controlado P0002 en vez de falso conflicto)
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'No se encontró la fila de estado compartido para la clave: %', p_key
+            USING ERRCODE = 'P0002';
+    END IF;
+
+    -- 4. Comprobación estricta de OCC: solo actualiza si la versión coincide con la esperada
+    IF v_current_version = p_expected_version THEN
+        UPDATE public.shared_state
+        SET payload = p_payload,
+            version = v_current_version + 1,
+            updated_at = now(),
+            updated_by = auth.uid()
+        WHERE state_key = p_key
+        RETURNING version, payload, shared_state.updated_at
+        INTO v_current_version, v_current_payload, v_updated_at;
+
+        RETURN QUERY SELECT TRUE, v_current_version, v_current_payload, v_updated_at;
+    ELSE
+        -- Conflicto detectado: versión remota es distinta a la esperada.
+        -- Retorna success = FALSE junto con la versión y payload actuales para resolución del cliente.
+        RETURN QUERY SELECT FALSE, v_current_version, v_current_payload, v_updated_at;
+    END IF;
+END;
+$$;
+
+-- Permisos sobre update_shared_state
+REVOKE ALL PRIVILEGES ON FUNCTION public.update_shared_state(TEXT, JSONB, INTEGER) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.update_shared_state(TEXT, JSONB, INTEGER) TO authenticated;
 
 -- ==============================================================================
 -- SECCIÓN 4: HABILITACIÓN DE RLS EN TODAS LAS TABLAS PÚBLICAS
 -- ==============================================================================
--- Justificación técnica: ENABLE ROW LEVEL SECURITY restringe estrictamente a
--- anon y authenticated. No se usa FORCE para conservar la capacidad administrativa
--- sin interferencias del rol postgres / service_role en scripts de mantenimiento.
+-- Justificación técnica de RLS (ENABLE vs FORCE):
+-- 1. En Supabase, las conexiones de clientes se ejecutan como los roles de base
+--    de datos 'anon' o 'authenticated'. Ninguno de estos roles es propietario
+--    de las tablas (el propietario es 'postgres'), y ninguno posee el atributo BYPASSRLS.
+-- 2. Por tanto, ENABLE ROW LEVEL SECURITY es 100% suficiente y estricto para
+--    hacer cumplir las políticas RLS en todas las consultas de la aplicación.
+-- 3. Los roles con atributo BYPASSRLS (como 'service_role' o 'supabase_admin')
+--    eluden RLS por diseño nativo de PostgreSQL, independientemente de que se
+--    aplique ENABLE o FORCE.
+-- 4. La cláusula FORCE ROW LEVEL SECURITY sólo alteraría el comportamiento para
+--    el propietario de la tabla ('postgres') cuando opere sin BYPASSRLS. Omitir FORCE
+--    evita que scripts de mantenimiento, migraciones o funciones administrativas
+--    sufran bloqueos o filtrados inesperados por falta de contexto JWT, sin reducir
+--    en absoluto la seguridad de 'anon' y 'authenticated'.
 ALTER TABLE public.recipes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.categories ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.shared_state ENABLE ROW LEVEL SECURITY;
@@ -198,19 +304,12 @@ DROP POLICY IF EXISTS "Emergency authenticated shared_state insert" ON public.sh
 DROP POLICY IF EXISTS "Emergency authenticated shared_state update" ON public.shared_state;
 DROP POLICY IF EXISTS "Emergency authenticated shared_state access" ON public.shared_state;
 
--- Políticas separadas por operación (sin DELETE para clientes)
+-- Política exclusiva de lectura para miembros:
+-- Las mutaciones quedan prohibidas a nivel de tabla (REVOKE DML) y se realizan
+-- exclusivamente a través de la función SECURITY DEFINER public.update_shared_state().
 CREATE POLICY "Shared state members select" ON public.shared_state
     FOR SELECT TO authenticated
     USING (public.is_app_member());
-
-CREATE POLICY "Shared state members insert" ON public.shared_state
-    FOR INSERT TO authenticated
-    WITH CHECK (public.is_app_member());
-
-CREATE POLICY "Shared state members update" ON public.shared_state
-    FOR UPDATE TO authenticated
-    USING (public.is_app_member())
-    WITH CHECK (public.is_app_member());
 
 -- ==============================================================================
 -- SECCIÓN 8: POLÍTICAS RLS EN public.app_members

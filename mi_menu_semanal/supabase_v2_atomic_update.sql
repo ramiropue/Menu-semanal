@@ -3,8 +3,8 @@
 -- Archivo: supabase_v2_atomic_update.sql
 -- Objetivo: Función RPC atómica para actualización de shared_state con
 --           Control Optimista de Concurrencia (OCC), validación en servidor,
---           aislamiento estricto (SECURITY INVOKER) y verificación temprana
---           de membresía.
+--           ejecución controlada (SECURITY DEFINER con search_path = public, pg_temp)
+--           y verificación temprana de membresía (is_app_member()).
 -- ==============================================================================
 
 BEGIN;
@@ -22,7 +22,7 @@ RETURNS TABLE (
     updated_at TIMESTAMPTZ
 )
 LANGUAGE plpgsql
-SECURITY INVOKER -- Ejecuta con los permisos del llamador para respetar RLS (is_app_member)
+SECURITY DEFINER -- Ejecuta con privilegios del propietario para actualizar shared_state sin requerir UPDATE directo en clientes
 SET search_path = public, pg_temp
 AS $$
 DECLARE
