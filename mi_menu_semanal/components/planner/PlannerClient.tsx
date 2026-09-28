@@ -7,6 +7,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { BottomNav } from "@/components/ui/BottomNav";
 import { Header } from "@/components/ui/Header";
+import { RecipePickerModal, SelectedSlot } from "@/components/planner/RecipePickerModal";
 import { RECIPE_INGREDIENTS, Ingredient } from "@/data/ingredients";
 import { getPlannedMeals, savePlannedMeals, PLANNER_EVENT_KEY, MealSlot } from "@/lib/plannerStore";
 import { getShoppingList, saveShoppingList } from "@/lib/syncStore";
@@ -21,7 +22,7 @@ interface Recipe {
   time?: string;
   calories?: string;
   category_id?: string;
-  ingredients?: any[];
+  ingredients?: Array<{ name?: string; ingrediente?: string; quantity?: string | number; cantidad?: string | number; unit?: string; unidad?: string }>;
 }
 
 interface NormalizedMealSlot {
@@ -153,10 +154,10 @@ export function PlannerClient({ recipes }: { recipes: Recipe[] }) {
           let ingredients: Ingredient[] = [];
           if (recipe?.ingredients && recipe.ingredients.length > 0) {
             ingredients = recipe.ingredients.map(ing => ({
-              name: ing.ingrediente || ing.name,
-              quantity: parseFloat(ing.cantidad || ing.quantity) || 1,
+              name: ing.ingrediente || ing.name || "",
+              quantity: parseFloat(String(ing.cantidad ?? ing.quantity ?? 1)) || 1,
               unit: ing.unidad || ing.unit || "uds",
-              category: "Otros" as any
+              category: "Otros" as const
             }));
           } else if (RECIPE_INGREDIENTS[recipeId]) {
             ingredients = RECIPE_INGREDIENTS[recipeId];
@@ -220,7 +221,7 @@ export function PlannerClient({ recipes }: { recipes: Recipe[] }) {
     const today = new Date();
     const firstDay = new Date(today.getFullYear(), today.getMonth() + offset, 1);
     const lastDay = new Date(today.getFullYear(), today.getMonth() + offset + 1, 0);
-    let firstDayOfWeek = firstDay.getDay() === 0 ? 6 : firstDay.getDay() - 1;
+    const firstDayOfWeek = firstDay.getDay() === 0 ? 6 : firstDay.getDay() - 1;
     const days = [];
     const monthName = firstDay.toLocaleDateString('es-ES', { month: 'long', year: 'numeric' });
     
@@ -257,7 +258,7 @@ export function PlannerClient({ recipes }: { recipes: Recipe[] }) {
     const handleLocalUpdate = () => {
       const saved = localStorage.getItem("planner_meals");
       if (saved) {
-        try { setPlannedMeals(JSON.parse(saved)); } catch (e) {}
+        try { setPlannedMeals(JSON.parse(saved)); } catch { /* ignore corrupted local cache */ }
       }
     };
 
@@ -298,12 +299,10 @@ export function PlannerClient({ recipes }: { recipes: Recipe[] }) {
 
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [selectedSlot, setSelectedSlot] = useState<{ date: string, type: string, isReplacement?: boolean, replaceIndex?: number } | null>(null);
-  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedSlot, setSelectedSlot] = useState<SelectedSlot | null>(null);
 
   const openModal = (date: string, type: string, isReplacement = false, replaceIndex?: number) => {
     setSelectedSlot({ date, type, isReplacement, replaceIndex });
-    setSearchQuery("");
     setIsModalOpen(true);
   };
 
@@ -375,43 +374,6 @@ export function PlannerClient({ recipes }: { recipes: Recipe[] }) {
       });
     }
   };
-
-  // Filtrar recetas para el modal
-  const getFilteredRecipes = () => {
-    if (!selectedSlot) return [];
-    
-    // Si hay texto de búsqueda, buscamos en todas las recetas ignorando el filtro inteligente
-    if (searchQuery.trim() !== "") {
-      const q = searchQuery.toLowerCase();
-      return recipes.filter(r => 
-        r.title.toLowerCase().includes(q) || 
-        r.tags?.some(t => t.toLowerCase().includes(q))
-      );
-    }
-    
-    const term = selectedSlot.type.toLowerCase();
-    
-    return recipes.filter(r => {
-      let inTags = r.tags?.some(t => t.toLowerCase().includes(term));
-      let inType = r.type?.toLowerCase() === term;
-      let inCategory = false;
-      
-      // Mapeos inteligentes por categoría
-      // Asumiendo category_id de la BD (1:Favoritas, 2:Entrantes, 3:Desayuno, 4:Carne, 5:Pescado, 6:Ensaladas, 7:Postres)
-      if (term === 'desayuno' && r.category_id === '3') inCategory = true;
-      if (term === 'comida' && ['2', '4', '5', '6'].includes(r.category_id || '')) inCategory = true;
-      if (term === 'cena' && ['2', '5', '6'].includes(r.category_id || '')) inCategory = true;
-      
-      // Ampliación de tags si es "comida" o "cena"
-      if (term === 'comida' && r.tags?.some(t => ['carne', 'pescado', 'fuerte', 'plato principal', 'almuerzo'].includes(t.toLowerCase()))) inTags = true;
-      if (term === 'cena' && r.tags?.some(t => ['ligero', 'pescado', 'ensalada', 'cena'].includes(t.toLowerCase()))) inTags = true;
-
-      return inTags || inType || inCategory;
-    });
-  };
-
-  const filteredRecipes = getFilteredRecipes();
-  const showFallback = filteredRecipes.length === 0 && searchQuery.trim() === "";
 
   return (
     <div className="bg-[#F6F9FC] h-full w-full overflow-y-auto overflow-x-hidden flex-1 flex flex-col pb-32 md:pb-12 font-plus-jakarta text-[#2A4B4C]">
@@ -528,7 +490,6 @@ export function PlannerClient({ recipes }: { recipes: Recipe[] }) {
                 if (!day) return <div key={`empty-${i}`} className="h-[60px] md:h-[100px] rounded-xl bg-[#F6F9FC]/50"></div>;
                 
                 const meals = getNormalizedMealsForDate(day.date);
-                const hasAnyMeal = meals.some(m => m.recipeIds.length > 0);
                 const isToday = day.date === new Date(new Date().getTime() - new Date().getTimezoneOffset() * 60000).toISOString().split('T')[0];
                 
                 return (
@@ -656,81 +617,14 @@ export function PlannerClient({ recipes }: { recipes: Recipe[] }) {
       </main>
 
       {/* MODAL PARA ELEGIR RECETA */}
-      {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center p-4">
-          <div className="absolute inset-0 bg-[#0B3B3C]/40 backdrop-blur-sm" onClick={() => setIsModalOpen(false)}></div>
-          <div className="bg-[#F6F9FC] w-full max-w-md rounded-[32px] overflow-hidden shadow-2xl relative z-10 animate-in slide-in-from-bottom-10 md:slide-in-from-bottom-0 md:zoom-in-95">
-            <div className="p-6 bg-white flex justify-between items-center border-b border-gray-100">
-              <div>
-                <h3 className="font-headline font-black text-[22px] text-[#0B3B3C]">Elige una receta</h3>
-                <p className="text-[#B93B11] font-bold text-[12px] tracking-wider uppercase mt-1">{selectedSlot?.type}</p>
-              </div>
-              <button onClick={() => setIsModalOpen(false)} className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center text-gray-500 hover:bg-gray-200">
-                <span className="material-symbols-outlined">close</span>
-              </button>
-            </div>
-            
-            {/* Buscador */}
-            <div className="p-4 border-b border-gray-100 bg-[#F6F9FC]/50">
-              <div className="relative">
-                <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-[20px]">search</span>
-                <input 
-                  type="text" 
-                  placeholder="Buscar cualquier receta..." 
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full bg-white border border-gray-200 rounded-xl py-2.5 pl-10 pr-4 text-sm text-[#0B3B3C] placeholder:text-gray-400 focus:outline-none focus:border-[#B93B11] focus:ring-1 focus:ring-[#B93B11] shadow-sm"
-                />
-                {searchQuery && (
-                  <button onClick={() => setSearchQuery('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-                    <span className="material-symbols-outlined text-[18px]">close</span>
-                  </button>
-                )}
-              </div>
-            </div>
-
-            <div className="p-4 max-h-[50vh] overflow-y-auto space-y-3 hide-scrollbar">
-              
-              {!showFallback && filteredRecipes.length > 0 && filteredRecipes.map(recipe => (
-                <div key={recipe.id} onClick={() => assignRecipe(recipe.id)} className="bg-white rounded-2xl p-3 flex items-center gap-4 cursor-pointer hover:ring-2 hover:ring-[#B93B11] transition-all shadow-sm">
-                  <div className="w-14 h-14 rounded-xl overflow-hidden shrink-0">
-                    <img src={recipe.image || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=100&q=80'} className="w-full h-full object-cover" />
-                  </div>
-                  <div className="flex-1">
-                    <p className="font-bold text-[#0B3B3C] text-[15px]">{recipe.title}</p>
-                    <p className="text-gray-400 text-xs mt-0.5">{recipe.time || '30 min'} • {recipe.calories || '450'} kcal</p>
-                  </div>
-                </div>
-              ))}
-
-              {!showFallback && filteredRecipes.length === 0 && (
-                <div className="text-center py-8 px-2">
-                  <span className="material-symbols-outlined text-[48px] text-gray-300 mb-2">search_off</span>
-                  <p className="text-[#2A4B4C] text-[15px]">No se han encontrado recetas con "{searchQuery}".</p>
-                </div>
-              )}
-
-              {showFallback && (
-                <div className="text-center py-4 px-2">
-                  <p className="text-[#2A4B4C] mb-4 text-[15px]">No tienes recetas etiquetadas exactamente como <b>{selectedSlot?.type}</b>.</p>
-                  <p className="text-sm font-bold text-[#0B3B3C] mb-4 text-left">Todas tus recetas:</p>
-                  {recipes.map(recipe => (
-                    <div key={recipe.id} onClick={() => assignRecipe(recipe.id)} className="bg-white rounded-2xl p-3 flex items-center gap-4 cursor-pointer hover:ring-2 hover:ring-[#B93B11] transition-all shadow-sm mb-3 text-left">
-                      <div className="w-14 h-14 rounded-xl overflow-hidden shrink-0">
-                        <img src={recipe.image || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=100&q=80'} className="w-full h-full object-cover" />
-                      </div>
-                      <div className="flex-1">
-                        <p className="font-bold text-[#0B3B3C] text-[15px] leading-tight mb-1">{recipe.title}</p>
-                        <p className="text-gray-400 text-[11px] font-bold uppercase tracking-wider">{recipe.type || 'Plato Fuerte'}</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
+      <RecipePickerModal
+        key={selectedSlot ? `${selectedSlot.date}-${selectedSlot.type}-${selectedSlot.replaceIndex ?? "new"}` : "closed"}
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        selectedSlot={selectedSlot}
+        recipes={recipes}
+        onSelectRecipe={assignRecipe}
+      />
 
       <BottomNav />
     </div>
