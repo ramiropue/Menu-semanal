@@ -131,7 +131,7 @@ describe("RecipePickerModal Component & Accessibility Contract", () => {
   // 3. RESPONSIVE DESIGN Y COMPATIBILIDAD CON SAFARI EN IPHONE
   // =========================================================================
   describe("3. Responsive Design y Reglas de Safari / iOS", () => {
-    it("utiliza z-[70] para quedar visualmente por encima de BottomNav (z-50)", () => {
+    it("utiliza z-[100] para quedar visualmente por encima de BottomNav (z-50) y de toda la interfaz", () => {
       const html = renderToStaticMarkup(
         <RecipePickerModal
           isOpen={true}
@@ -142,7 +142,7 @@ describe("RecipePickerModal Component & Accessibility Contract", () => {
         />
       );
 
-      expect(html).toContain("z-[70]");
+      expect(html).toContain("z-[100]");
     });
 
     it("utiliza 100dvh y contempla safe-area-inset en top y bottom", () => {

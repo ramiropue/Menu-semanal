@@ -616,7 +616,12 @@ export function PlannerClient({ recipes }: { recipes: Recipe[] }) {
         </div>
       </main>
 
-      {/* MODAL PARA ELEGIR RECETA */}
+      {/* NAVEGACIÓN INFERIOR (oculta cuando el modal está abierto para evitar solapamiento en iOS) */}
+      <div className={isModalOpen ? "hidden" : "contents"}>
+        <BottomNav />
+      </div>
+
+      {/* MODAL PARA ELEGIR RECETA - Renderizado después de la navegación con z-[100] */}
       <RecipePickerModal
         key={selectedSlot ? `${selectedSlot.date}-${selectedSlot.type}-${selectedSlot.replaceIndex ?? "new"}` : "closed"}
         isOpen={isModalOpen}
@@ -625,8 +630,6 @@ export function PlannerClient({ recipes }: { recipes: Recipe[] }) {
         recipes={recipes}
         onSelectRecipe={assignRecipe}
       />
-
-      <BottomNav />
     </div>
   );
 }

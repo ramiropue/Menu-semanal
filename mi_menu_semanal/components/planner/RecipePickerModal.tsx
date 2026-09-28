@@ -92,10 +92,10 @@ export function RecipePickerModal({
   const showFallback = filteredRecipes.length === 0 && searchQuery.trim() === "";
 
   return (
-    <div className="fixed inset-0 z-[70] flex items-end md:items-center justify-center p-3 sm:p-4 pt-[calc(env(safe-area-inset-top,0px)+0.75rem)] pb-[calc(env(safe-area-inset-bottom,0px)+0.75rem)] md:py-6">
+    <div className="fixed inset-0 z-[100] flex items-end md:items-center justify-center p-3 sm:p-4 pt-[calc(env(safe-area-inset-top,0px)+0.75rem)] pb-[calc(env(safe-area-inset-bottom,0px)+0.75rem)] md:py-6">
       {/* Backdrop */}
       <div
-        className="absolute inset-0 bg-[#0B3B3C]/40 backdrop-blur-sm"
+        className="fixed inset-0 bg-[#0B3B3C]/50 backdrop-blur-sm -z-10"
         onClick={onClose}
         aria-hidden="true"
       />
@@ -105,7 +105,7 @@ export function RecipePickerModal({
         role="dialog"
         aria-modal="true"
         aria-labelledby="recipe-modal-title"
-        className="bg-[#F6F9FC] w-full max-w-md rounded-[28px] md:rounded-[32px] overflow-hidden shadow-2xl relative z-10 flex flex-col max-h-[calc(100dvh-env(safe-area-inset-top,0px)-env(safe-area-inset-bottom,0px)-1.5rem)] md:max-h-[85vh] animate-in slide-in-from-bottom-10 md:slide-in-from-bottom-0 md:zoom-in-95"
+        className="bg-[#F6F9FC] w-full max-w-md rounded-t-[32px] rounded-b-[28px] md:rounded-[32px] overflow-hidden shadow-2xl relative z-10 flex flex-col h-[85dvh] max-h-[calc(100dvh-env(safe-area-inset-top,0px)-env(safe-area-inset-bottom,0px)-1.5rem)] md:h-auto md:max-h-[85vh] animate-in slide-in-from-bottom-10 md:slide-in-from-bottom-0 md:zoom-in-95"
       >
         {/* Cabecera persistente */}
         <div className="p-4 sm:p-6 bg-white flex justify-between items-center border-b border-gray-100 shrink-0">
@@ -154,7 +154,7 @@ export function RecipePickerModal({
         </div>
 
         {/* Lista desplazable con flex-1 min-h-0 y zona segura inferior */}
-        <div className="flex-1 min-h-0 overflow-y-auto p-3 sm:p-4 space-y-3 hide-scrollbar overscroll-contain pb-[calc(1rem+env(safe-area-inset-bottom,0px))] md:pb-4">
+        <div className="flex-1 min-h-0 overflow-y-auto p-3 sm:p-4 space-y-3 hide-scrollbar overscroll-contain pb-[calc(1.5rem+env(safe-area-inset-bottom,0px))] md:pb-4">
           {!showFallback && filteredRecipes.length > 0 && filteredRecipes.map((recipe) => (
             <div
               key={recipe.id}
