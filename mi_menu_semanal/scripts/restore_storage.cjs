@@ -106,7 +106,7 @@ async function runStorageRestore(customArgs = null) {
     let serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
     const envFile = path.resolve(__dirname, '../.env.local');
-    if ((!supabaseUrl || !serviceRoleKey) && fs.existsSync(envFile)) {
+    if ((!supabaseUrl || !serviceRoleKey) && fs.existsSync(envFile) && !process.env.VITEST) {
       const envContent = fs.readFileSync(envFile, 'utf8');
       const urlMatch = envContent.match(/NEXT_PUBLIC_SUPABASE_URL=([^\r\n]+)/);
       const serviceKeyMatch = envContent.match(/SUPABASE_SERVICE_ROLE_KEY=([^\r\n]+)/);
