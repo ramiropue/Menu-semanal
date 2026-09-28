@@ -16,6 +16,8 @@
 --      este script relaja temporalmente la comprobación a cualquier usuario autenticado
 --      con sesión válida (auth.uid() IS NOT NULL).
 --    - Los usuarios anónimos permanecen 100% bloqueados sin excepción.
+--    - public.shared_state mantiene ÚNICAMENTE lectura directa (SELECT);
+--      las mutaciones se realizan exclusivamente a través de public.update_shared_state().
 -- 4. STORAGE AISLADO:
 --    - Las políticas de emergencia en storage.objects aplican exclusivamente al bucket
 --      'recipe-images' y requieren auth.uid() IS NOT NULL.
@@ -91,30 +93,25 @@ CREATE POLICY "Emergency authenticated categories access" ON public.categories
     USING (auth.uid() IS NOT NULL)
     WITH CHECK (auth.uid() IS NOT NULL);
 
--- C) shared_state (DEGRADACIÓN TEMPORAL DE EMERGENCIA)
+-- C) shared_state: lectura de emergencia para cualquier autenticado; mutación exclusiva vía RPC OCC
 -- ==============================================================================
--- ⚠️ AVISO CRÍTICO DE SEGURIDAD Y DEGRADACIÓN TEMPORAL ⚠️
--- La concesión de INSERT y UPDATE directos a 'authenticated' desactiva por completo
--- el control optimista de concurrencia (OCC) y la validación de tipos en servidor
--- de update_shared_state().
--- Este modo constituye una degradación temporal de contingencia operativa extrema
--- (p. ej., si falla la resolución RPC en producción) y EXIGE RETIRADA INMEDIATA
--- una vez superada la emergencia.
+-- NOTA ARQUITECTÓNICA DE ROLLBACK:
+-- 1. La aplicación V2 (lib/state/stateAdapter.ts) no realiza escrituras directas sobre
+--    public.shared_state; canaliza el 100% de las mutaciones mediante public.update_shared_state().
+-- 2. Conceder INSERT/UPDATE directo a authenticated no recuperaría la aplicación si
+--    fallase la función RPC, pero sí anularía innecesariamente el control OCC y la
+--    validación estricta de payloads en servidor.
+-- 3. Por consiguiente, se mantiene el principio de menor privilegio: authenticated
+--    posee ÚNICAMENTE permiso SELECT. Las mutaciones directas continúan denegadas (42501).
+-- 4. La política de emergencia relaja únicamente la LECTURA (SELECT) a cualquier
+--    usuario autenticado con sesión válida (auth.uid() IS NOT NULL).
 -- ==============================================================================
-GRANT SELECT, INSERT, UPDATE ON TABLE public.shared_state TO authenticated;
+REVOKE ALL PRIVILEGES ON TABLE public.shared_state FROM anon, authenticated, PUBLIC;
+GRANT SELECT ON TABLE public.shared_state TO authenticated;
 
 CREATE POLICY "Emergency authenticated shared_state select" ON public.shared_state
     FOR SELECT TO authenticated
     USING (auth.uid() IS NOT NULL);
-
-CREATE POLICY "Emergency authenticated shared_state insert" ON public.shared_state
-    FOR INSERT TO authenticated
-    WITH CHECK (auth.uid() IS NOT NULL);
-
-CREATE POLICY "Emergency authenticated shared_state update" ON public.shared_state
-    FOR UPDATE TO authenticated
-    USING (auth.uid() IS NOT NULL)
-    WITH CHECK (auth.uid() IS NOT NULL);
 
 -- D) Storage (recipe-images): acceso para cualquier usuario autenticado
 CREATE POLICY "Emergency authenticated storage select" ON storage.objects

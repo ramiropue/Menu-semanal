@@ -696,43 +696,115 @@ describe('Stage 6A Supabase Lockdown Security Matrix Verification (Hardened)', (
       expect(bucketCheck.rows[0].public).toBe(true);
     });
 
-    it('el rollback seguro mantiene el bloqueo de anon y relaja exclusivamente a authenticated', async () => {
+    it('el rollback seguro mantiene el bloqueo de anon, relaja lectura a authenticated, prohíbe mutación directa en shared_state y preserva OCC RPC', async () => {
       await db.exec('SET ROLE postgres;');
       await db.exec("SELECT set_config('request.jwt.claims', '', false);");
       const rollbackSql = fs.readFileSync(path.resolve(__dirname, '../../supabase_v2_stage_6a_rollback.sql'), 'utf8');
       await db.exec(rollbackSql);
 
-      // 1. anon sigue 100% bloqueado
+      // 1. anon continúa completamente bloqueado
       await asSession('anon');
       await expect(db.query('SELECT * FROM public.recipes')).rejects.toThrow();
       await expect(db.query('SELECT * FROM public.categories')).rejects.toThrow();
       await expect(db.query('SELECT * FROM public.shared_state')).rejects.toThrow();
       await expect(db.query('SELECT * FROM public.app_members')).rejects.toThrow();
+      await expect(
+        db.query("INSERT INTO public.shared_state (state_key, payload) VALUES ('planner', '{}'::jsonb)")
+      ).rejects.toThrow();
+      await expect(
+        db.query("UPDATE public.shared_state SET payload = '{}'::jsonb WHERE state_key = 'planner'")
+      ).rejects.toThrow();
+      await expect(
+        db.query("SELECT * FROM public.update_shared_state('planner', '{}'::jsonb, 1)")
+      ).rejects.toThrow();
 
-      // 2. authenticated no-miembro tiene acceso de emergencia
+      // 2. authenticated puede leer shared_state según la política de emergencia (auth.uid() IS NOT NULL)
       await asSession('authenticated', intruder_id, 'intruder@example.com');
-      const res = await db.query('SELECT * FROM public.recipes');
-      expect(res.rows.length).toBeGreaterThanOrEqual(1);
+      const recsIntruder = await db.query('SELECT * FROM public.recipes');
+      expect(recsIntruder.rows.length).toBeGreaterThanOrEqual(1);
 
-      // 3. app_members sigue bloqueado para authenticated en rollback
+      const stateIntruder = await db.query('SELECT * FROM public.shared_state');
+      expect(stateIntruder.rows.length).toBe(4);
+
+      // 3. INSERT, UPDATE o DELETE directo sobre shared_state sigue fallando (42501)
+      await expect(
+        db.query("INSERT INTO public.shared_state (state_key, payload) VALUES ('planner', '{}'::jsonb)")
+      ).rejects.toThrow();
+      await expect(
+        db.query("UPDATE public.shared_state SET payload = '{\"hacked\": true}'::jsonb WHERE state_key = 'planner'")
+      ).rejects.toThrow();
+      await expect(
+        db.query("DELETE FROM public.shared_state WHERE state_key = 'planner'")
+      ).rejects.toThrow();
+
+      // app_members sigue completamente cerrado para clientes
       await expect(db.query('SELECT * FROM public.app_members')).rejects.toThrow();
 
-      // 4. recipe-images sigue teniendo public = true
+      // 4. Usuario autenticado NO miembro NO puede utilizar la RPC (comprobación interna is_app_member())
+      await expect(
+        db.query("SELECT * FROM public.update_shared_state('planner', '{}'::jsonb, 1)")
+      ).rejects.toThrow(/Usuario no autorizado/);
+
+      // 5. Miembro autorizado (A) puede seguir escribiendo mediante update_shared_state()
+      await asSession('authenticated', memberA_id, 'member_a@example.com');
+
+      // Miembro A tampoco tiene mutación directa (42501)
+      await expect(
+        db.query("UPDATE public.shared_state SET payload = '{}'::jsonb WHERE state_key = 'freezer'")
+      ).rejects.toThrow();
+
+      // Miembro A escribe exitosamente vía RPC con OCC
+      const rpcRollbackRes = await db.query<{ success: boolean; current_version: number; current_payload: unknown }>(
+        "SELECT * FROM public.update_shared_state('freezer', '[{\"item\": \"Reserva de Rollback\"}]'::jsonb, 1)"
+      );
+      expect(rpcRollbackRes.rows[0].success).toBe(true);
+      expect(rpcRollbackRes.rows[0].current_version).toBe(2);
+
+      // 6. La RPC conserva la validación de claves, tipos y OCC tras el rollback
+      // 6.1 Conflicto OCC con versión obsoleta
+      const conflictRes = await db.query<{ success: boolean; current_version: number }>(
+        "SELECT * FROM public.update_shared_state('freezer', '[{\"item\": \"Conflicto\"}]'::jsonb, 1)"
+      );
+      expect(conflictRes.rows[0].success).toBe(false);
+      expect(conflictRes.rows[0].current_version).toBe(2);
+
+      // 6.2 Clave desconocida rechazada
+      await expect(
+        db.query("SELECT * FROM public.update_shared_state('clave_invalida', '{}'::jsonb, 1)")
+      ).rejects.toThrow(/Clave de estado compartida no permitida/);
+
+      // 6.3 Tipo de payload inválido rechazado
+      await expect(
+        db.query("SELECT * FROM public.update_shared_state('planner', '[]'::jsonb, 1)")
+      ).rejects.toThrow(/El payload para planner debe ser un objeto JSON/);
+
+      // 7. recipe-images sigue teniendo public = true a nivel de bucket
       await db.exec('SET ROLE postgres;');
       const bucketCheck = await db.query<{ public: boolean }>(
         "SELECT public FROM storage.buckets WHERE id = 'recipe-images'"
       );
       expect(bucketCheck.rows[0].public).toBe(true);
 
-      // 5. Re-aplicar lockdown vuelve a cerrar el acceso
+      // 8. Re-aplicación del lockdown vuelve a dejar la matriz estricta completa
       await db.exec("SELECT set_config('request.jwt.claims', '', false);");
       const lockdownSql = fs.readFileSync(path.resolve(__dirname, '../../supabase_v2_stage_6a_lockdown.sql'), 'utf8');
       await db.exec(lockdownSql);
 
-      // Ahora el no-miembro vuelve a estar bloqueado
+      // Ahora el no-miembro vuelve a tener 0 filas por RLS
       await asSession('authenticated', intruder_id, 'intruder@example.com');
-      const resAfter = await db.query('SELECT * FROM public.recipes');
-      expect(resAfter.rows.length).toBe(0);
+      const resAfterRecipes = await db.query('SELECT * FROM public.recipes');
+      expect(resAfterRecipes.rows.length).toBe(0);
+
+      const resAfterCategories = await db.query('SELECT * FROM public.categories');
+      expect(resAfterCategories.rows.length).toBe(0);
+
+      const resAfterSharedState = await db.query('SELECT * FROM public.shared_state');
+      expect(resAfterSharedState.rows.length).toBe(0);
+
+      // Miembro A recupera acceso restringido a la unidad familiar privada
+      await asSession('authenticated', memberA_id, 'member_a@example.com');
+      const resMemberState = await db.query('SELECT * FROM public.shared_state');
+      expect(resMemberState.rows.length).toBe(4);
     });
   });
 });
