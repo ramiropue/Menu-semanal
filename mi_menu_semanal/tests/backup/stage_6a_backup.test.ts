@@ -1,8 +1,15 @@
 import { describe, it, expect } from 'vitest';
+import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
 import { execSync } from 'child_process';
-import { anonymizeHost, sha256 } from '../../scripts/backup_stage_6a.cjs';
+import {
+  anonymizeHost,
+  sha256,
+  validateProductionCommit,
+  validateGitState,
+  getCommitHash,
+} from '../../scripts/backup_stage_6a.cjs';
 import { parseRestoreArgs } from '../../scripts/restore_stage_6a_dry_run.cjs';
 
 describe('Stage 6A-1 Backup and Recovery Verification Suite', () => {
@@ -147,8 +154,8 @@ describe('Stage 6A-1 Backup and Recovery Verification Suite', () => {
         stage: '6A-1',
         timestamp_utc: new Date().toISOString(),
         project_ref_anonymized: 'cazmq***.supabase.co',
-        production_commit: 'daa40e41d4faa0415592914c4e4fe561d5cb9443',
-        security_branch_commit: 'e7dc04a',
+        production_commit: '0123456789abcdef0123456789abcdef01234567',
+        security_branch_commit: '0123456789abcdef0123456789abcdef01234567',
         counts: {
           recipes: { obtained: 35, reference: 35 },
           categories: { obtained: 14, reference: 14 },
@@ -167,6 +174,7 @@ describe('Stage 6A-1 Backup and Recovery Verification Suite', () => {
       expect(sampleManifest.counts.categories.reference).toBe(14);
       expect(sampleManifest.counts.shared_state.reference).toBe(4);
       expect(sampleManifest.counts.app_members.reference).toBe(3);
+      expect(sampleManifest.production_commit).toMatch(/^[0-9a-f]{40}$/);
     });
 
     it('valida que las claves esperadas de shared_state son exactamente 4', () => {
@@ -175,6 +183,133 @@ describe('Stage 6A-1 Backup and Recovery Verification Suite', () => {
 
       expect(testKeys.length).toBe(4);
       expect(validKeys.every((k) => testKeys.includes(k))).toBe(true);
+    });
+  });
+
+  describe('6. Trazabilidad Dinámica de Git y Validación de Commit de Producción', () => {
+    it('demuestra que no existe ningún SHA de commit de producción hardcodeado en scripts/backup_stage_6a.cjs', () => {
+      const scriptPath = path.resolve(__dirname, '../../scripts/backup_stage_6a.cjs');
+      const scriptContent = fs.readFileSync(scriptPath, 'utf8');
+
+      // 1. No contiene el hash obsoleto de la Etapa 6A-1
+      expect(scriptContent).not.toContain('daa40e41d4faa0415592914c4e4fe561d5cb9443');
+
+      // 2. No contiene el commit actual de producción hardcodeado
+      expect(scriptContent).not.toContain('9cc68845d9694c0c7b405cf2f1931bd8d9bf7e98');
+
+      // 3. Comprueba que production_commit se asigna desde la variable dinámica gitState.headCommit
+      expect(scriptContent).toMatch(/const\s+prodCommit\s*=\s*gitState\.headCommit/);
+      expect(scriptContent).toMatch(/production_commit:\s*prodCommit/);
+
+      // 4. Verifica que no haya asignaciones literales de 40 hex caracteres a variables de commit de producción
+      expect(scriptContent).not.toMatch(/prodCommit\s*=\s*['"][0-9a-f]{40}['"]/i);
+    });
+
+    it('demuestra que validateProductionCommit acepta exclusivamente SHAs Git completos de 40 caracteres', () => {
+      const validSha = '0123456789abcdef0123456789abcdef01234567';
+      expect(validateProductionCommit(validSha)).toBe(validSha);
+      expect(validateProductionCommit(`  ${validSha}  `)).toBe(validSha);
+
+      expect(() => validateProductionCommit('unknown')).toThrow(/Commit de producción inválido o desconocido/);
+      expect(() => validateProductionCommit('')).toThrow(/Commit de producción inválido o desconocido/);
+      expect(() => validateProductionCommit('1234567890abcdef')).toThrow(/Commit de producción inválido o desconocido/);
+      expect(() => validateProductionCommit('z'.repeat(40))).toThrow(/Commit de producción inválido o desconocido/);
+      expect(() => validateProductionCommit(null as unknown as string)).toThrow(
+        /Commit de producción inválido o desconocido/
+      );
+    });
+
+    it('demuestra que validateGitState aborta si HEAD tiene un SHA inválido o desconocido', () => {
+      expect(() =>
+        validateGitState({
+          runGit: (cmd: string) => {
+            if (cmd === 'git rev-parse HEAD') return 'unknown';
+            return '';
+          },
+        })
+      ).toThrow(/Commit de producción inválido o desconocido/);
+    });
+
+    it('demuestra que validateGitState aborta si el árbol de trabajo está sucio', () => {
+      const mockSha = 'a'.repeat(40);
+      expect(() =>
+        validateGitState({
+          runGit: (cmd: string) => {
+            if (cmd === 'git rev-parse HEAD') return mockSha;
+            if (cmd === 'git status --porcelain') return ' M scripts/backup_stage_6a.cjs';
+            return '';
+          },
+        })
+      ).toThrow(/El árbol de trabajo de Git no está limpio/);
+    });
+
+    it('demuestra que validateGitState aborta si HEAD no coincide con origin/main', () => {
+      const headSha = 'a'.repeat(40);
+      const originSha = 'b'.repeat(40);
+      expect(() =>
+        validateGitState({
+          runGit: (cmd: string) => {
+            if (cmd === 'git rev-parse HEAD') return headSha;
+            if (cmd === 'git status --porcelain') return '';
+            if (cmd === 'git rev-parse origin/main') return originSha;
+            return '';
+          },
+        })
+      ).toThrow(/HEAD .* no coincide con origin\/main/);
+    });
+
+    it('demuestra que validateGitState aborta si la rama local no es main y no está autorizada explícitamente', () => {
+      const matchingSha = 'a'.repeat(40);
+      expect(() =>
+        validateGitState({
+          runGit: (cmd: string) => {
+            if (cmd === 'git rev-parse HEAD') return matchingSha;
+            if (cmd === 'git status --porcelain') return '';
+            if (cmd === 'git rev-parse origin/main') return matchingSha;
+            if (cmd === 'git rev-parse --abbrev-ref HEAD') return 'feature-branch';
+            return '';
+          },
+        })
+      ).toThrow(/La rama actual es 'feature-branch'\. Se exige ejecutar el backup desde la rama 'main'/);
+    });
+
+    it('demuestra que validateGitState tiene éxito cuando la rama es main, el árbol está limpio y HEAD coincide con origin/main', () => {
+      const matchingSha = 'a'.repeat(40);
+      const result = validateGitState({
+        runGit: (cmd: string) => {
+          if (cmd === 'git rev-parse HEAD') return matchingSha;
+          if (cmd === 'git status --porcelain') return '';
+          if (cmd === 'git rev-parse origin/main') return matchingSha;
+          if (cmd === 'git rev-parse --abbrev-ref HEAD') return 'main';
+          return '';
+        },
+      });
+
+      expect(result.headCommit).toBe(matchingSha);
+      expect(result.originMainCommit).toBe(matchingSha);
+      expect(result.currentBranch).toBe('main');
+    });
+
+    it('demuestra que validateGitState permite ramas alternativas con autorización explícita', () => {
+      const matchingSha = 'a'.repeat(40);
+      const result = validateGitState({
+        allowCustomBranch: true,
+        runGit: (cmd: string) => {
+          if (cmd === 'git rev-parse HEAD') return matchingSha;
+          if (cmd === 'git status --porcelain') return '';
+          if (cmd === 'git rev-parse origin/main') return matchingSha;
+          if (cmd === 'git rev-parse --abbrev-ref HEAD') return 'v2/stage-6a-backup-traceability';
+          return '';
+        },
+      });
+
+      expect(result.headCommit).toBe(matchingSha);
+      expect(result.currentBranch).toBe('v2/stage-6a-backup-traceability');
+    });
+
+    it('valida que getCommitHash obtiene un SHA real de 40 caracteres desde HEAD en el repositorio actual', () => {
+      const currentHead = getCommitHash('HEAD');
+      expect(currentHead).toMatch(/^[0-9a-f]{40}$/);
     });
   });
 });
