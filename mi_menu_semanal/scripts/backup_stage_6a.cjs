@@ -1,3 +1,4 @@
+/* eslint-disable */
 /**
  * scripts/backup_stage_6a.cjs
  *
@@ -109,6 +110,89 @@ function verifyGitIgnore(targetPath) {
   }
 }
 
+const GIT_SHA_REGEX = /^[0-9a-f]{40}$/i;
+
+function validateProductionCommit(commitHash) {
+  if (!commitHash || typeof commitHash !== 'string' || !GIT_SHA_REGEX.test(commitHash.trim())) {
+    throw new Error(
+      `ABORTANDO: Commit de producción inválido o desconocido ('${commitHash}'). Se requiere un SHA Git completo de 40 caracteres hexadecimales.`
+    );
+  }
+  return commitHash.trim();
+}
+
+function validateGitState(options = {}) {
+  const rootDir = options.cwd || path.resolve(__dirname, '..');
+  const runGit = options.runGit || ((cmd) => execSync(cmd, { cwd: rootDir, encoding: 'utf8' }).trim());
+
+  // 1. Obtener HEAD y validar SHA de 40 caracteres
+  let headCommit;
+  try {
+    headCommit = runGit('git rev-parse HEAD');
+  } catch (err) {
+    headCommit = 'unknown';
+  }
+  validateProductionCommit(headCommit);
+
+  // 2. Verificar árbol de trabajo limpio
+  let statusOut = '';
+  try {
+    statusOut = runGit('git status --porcelain');
+  } catch (err) {
+    throw new Error(`ABORTANDO: Error al verificar estado de Git: ${err.message}`);
+  }
+
+  if (statusOut.length > 0 && !options.allowDirty) {
+    throw new Error('ABORTANDO: El árbol de trabajo de Git no está limpio. Hay cambios sin confirmar o archivos no rastreados.');
+  }
+
+  // 3. Resolver origin/main y verificar que coincida con HEAD
+  let originMainCommit;
+  try {
+    originMainCommit = runGit('git rev-parse origin/main');
+  } catch (err) {
+    originMainCommit = 'unknown';
+  }
+
+  if (!originMainCommit || !GIT_SHA_REGEX.test(originMainCommit)) {
+    throw new Error(
+      `ABORTANDO: No se pudo resolver 'origin/main' o el SHA es inválido ('${originMainCommit}'). Ejecuta 'git fetch origin main'.`
+    );
+  }
+
+  if (headCommit !== originMainCommit && !options.allowMismatch) {
+    throw new Error(
+      `ABORTANDO: HEAD ('${headCommit}') no coincide con origin/main ('${originMainCommit}'). El backup previo al lockdown debe realizarse exactamente sobre el commit publicado en producción.`
+    );
+  }
+
+  // 4. Exigir rama local 'main' o ejecución explícitamente autorizada desde el commit de producción
+  let currentBranch = '';
+  try {
+    currentBranch = runGit('git rev-parse --abbrev-ref HEAD');
+  } catch (err) {
+    currentBranch = 'unknown';
+  }
+
+  const isMain = currentBranch === 'main';
+  const isExplicitlyAuthorized =
+    Boolean(options.allowCustomBranch) ||
+    process.env.STAGE6A_ALLOW_NON_MAIN === '1' ||
+    process.env.STAGE6A_ALLOW_PROD_COMMIT === '1';
+
+  if (!isMain && !isExplicitlyAuthorized) {
+    throw new Error(
+      `ABORTANDO: La rama actual es '${currentBranch}'. Se exige ejecutar el backup desde la rama 'main' (o autorizar explícitamente mediante STAGE6A_ALLOW_NON_MAIN=1 si HEAD coincide con origin/main).`
+    );
+  }
+
+  return {
+    headCommit,
+    originMainCommit,
+    currentBranch,
+  };
+}
+
 function getCommitHash(ref = 'HEAD') {
   try {
     return execSync(`git rev-parse ${ref}`, {
@@ -140,7 +224,7 @@ function sqlEscape(val, colName) {
   return `'${String(val).replace(/'/g, "''")}'`;
 }
 
-async function runStage6aBackup() {
+async function runStage6aBackup(options = {}) {
   console.log('================================================================');
   console.log('ETAPA 6A-1: BACKUP PREVIO AL LOCKDOWN (SOLO LECTURA Y DESCARGA)');
   console.log('================================================================\n');
@@ -150,7 +234,11 @@ async function runStage6aBackup() {
   console.log(`✓ Proyecto destino verificado: ${anonymizeHost(creds.hostname)}`);
   console.log(`✓ Credencial service_role cargada localmente sin exposición`);
 
-  // 2. Preparar directorio de backup versionado
+  // 2. Validar estado y trazabilidad estricta de Git (HEAD, origin/main, rama limpia)
+  const gitState = validateGitState(options);
+  console.log(`✓ Trazabilidad Git verificada: commit ${gitState.headCommit} (rama: ${gitState.currentBranch})`);
+
+  // 3. Preparar directorio de backup versionado
   const now = new Date();
   const pad = (n) => String(n).padStart(2, '0');
   const timestampStr = `${now.getUTCFullYear()}${pad(now.getUTCMonth() + 1)}${pad(now.getUTCDate())}_${pad(now.getUTCHours())}${pad(now.getUTCMinutes())}${pad(now.getUTCSeconds())}`;
@@ -399,8 +487,8 @@ async function runStage6aBackup() {
 
   // 8. Manifiesto Global
   console.log('\n--- 5. Generación de Manifiesto Global ---');
-  const prodCommit = 'daa40e41d4faa0415592914c4e4fe561d5cb9443'; // Commit en producción de main
-  const currentBranchCommit = getCommitHash('HEAD');
+  const prodCommit = gitState.headCommit;
+  const currentBranchCommit = gitState.headCommit;
 
   const manifest = {
     manifest_format_version: '1.0.0',
@@ -464,4 +552,7 @@ module.exports = {
   verifyGitIgnore,
   anonymizeHost,
   sha256,
+  getCommitHash,
+  validateProductionCommit,
+  validateGitState,
 };
