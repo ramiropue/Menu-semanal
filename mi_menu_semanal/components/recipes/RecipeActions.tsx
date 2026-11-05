@@ -11,21 +11,7 @@ interface RecipeActionsProps {
 
 export function RecipeActions({ recipeId, source }: RecipeActionsProps) {
   const router = useRouter();
-
-  // Recetas administradas desde Markdown (RecetasNOTAS): no se ofrecen mutaciones de BD
-  if (source === "markdown") {
-    return (
-      <div
-        data-testid="markdown-recipe-notice"
-        className="flex items-center gap-2.5 mt-8 md:mt-10 px-4 py-3 rounded-2xl bg-surface-container-low border border-outline-variant/30 text-outline text-xs md:text-sm font-medium"
-      >
-        <span className="material-symbols-outlined text-base text-secondary" data-icon="description">
-          description
-        </span>
-        <span>Receta administrada desde RecetasNOTAS</span>
-      </div>
-    );
-  }
+  const isMarkdownRecipe = source === "markdown" || recipeId.startsWith("md-");
 
   const handleDelete = async () => {
     if (!confirm("¿Estás seguro de que quieres eliminar esta receta? Esta acción no se puede deshacer.")) {
@@ -34,13 +20,30 @@ export function RecipeActions({ recipeId, source }: RecipeActionsProps) {
 
     try {
       const supabase = createClient();
-      const { error } = await supabase
-        .from("recipes")
-        .delete()
-        .eq("id", recipeId);
 
-      if (error) {
-        throw error;
+      if (isMarkdownRecipe) {
+        const { error } = await supabase
+          .from("recipes")
+          .upsert({
+            id: recipeId,
+            title: "[Eliminada]",
+            image: "https://images.unsplash.com/photo-1495521821757-a1efb6729352?auto=format&fit=crop&q=80&w=800",
+            type: "standard",
+            tags: ["_DELETED_"],
+          });
+
+        if (error) {
+          throw error;
+        }
+      } else {
+        const { error } = await supabase
+          .from("recipes")
+          .delete()
+          .eq("id", recipeId);
+
+        if (error) {
+          throw error;
+        }
       }
 
       alert("Receta eliminada con éxito.");
@@ -53,22 +56,35 @@ export function RecipeActions({ recipeId, source }: RecipeActionsProps) {
   };
 
   return (
-    <div className="flex flex-wrap items-center gap-4 mt-10 md:mt-14" data-testid="supabase-recipe-actions">
-      <Link 
-        href={`/recetas/nueva?edit=${recipeId}`}
-        className="flex-1 sm:flex-initial flex items-center justify-center gap-2 px-6 py-3.5 md:py-4 rounded-2xl border-2 border-primary/20 text-primary font-bold text-sm md:text-base hover:bg-primary/5 active:scale-95 transition-all cursor-pointer"
-      >
-        <span className="material-symbols-outlined text-xl">edit</span>
-        Modificar
-      </Link>
-      <button 
-        type="button"
-        onClick={handleDelete}
-        className="flex-1 sm:flex-initial flex items-center justify-center gap-2 px-6 py-3.5 md:py-4 rounded-2xl bg-error/10 text-error font-bold text-sm md:text-base hover:bg-error/20 active:scale-95 transition-all cursor-pointer"
-      >
-        <span className="material-symbols-outlined text-xl">delete</span>
-        Eliminar
-      </button>
+    <div className="space-y-3 mt-10 md:mt-14">
+      {source === "markdown" && (
+        <div
+          data-testid="markdown-recipe-notice"
+          className="flex items-center gap-2.5 px-4 py-3 rounded-2xl bg-surface-container-low border border-outline-variant/30 text-outline text-xs md:text-sm font-medium"
+        >
+          <span className="material-symbols-outlined text-base text-secondary" data-icon="description">
+            description
+          </span>
+          <span>Receta importada desde RecetasNOTAS</span>
+        </div>
+      )}
+      <div className="flex flex-wrap items-center gap-4" data-testid="supabase-recipe-actions">
+        <Link
+          href={`/recetas/nueva?edit=${recipeId}`}
+          className="flex-1 sm:flex-initial flex items-center justify-center gap-2 px-6 py-3.5 md:py-4 rounded-2xl border-2 border-primary/20 text-primary font-bold text-sm md:text-base hover:bg-primary/5 active:scale-95 transition-all cursor-pointer"
+        >
+          <span className="material-symbols-outlined text-xl">edit</span>
+          Modificar
+        </Link>
+        <button
+          type="button"
+          onClick={handleDelete}
+          className="flex-1 sm:flex-initial flex items-center justify-center gap-2 px-6 py-3.5 md:py-4 rounded-2xl bg-error/10 text-error font-bold text-sm md:text-base hover:bg-error/20 active:scale-95 transition-all cursor-pointer"
+        >
+          <span className="material-symbols-outlined text-xl">delete</span>
+          Eliminar
+        </button>
+      </div>
     </div>
   );
 }

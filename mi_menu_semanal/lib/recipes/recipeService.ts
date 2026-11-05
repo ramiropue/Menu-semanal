@@ -9,6 +9,12 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 export const MD_PLACEHOLDER_IMAGE =
   "https://images.unsplash.com/photo-1495521821757-a1efb6729352?auto=format&fit=crop&q=80&w=800";
 
+export const DELETED_RECIPE_TAG = "_DELETED_";
+
+export function isDeletedRecipeRow(row: Record<string, unknown>): boolean {
+  return Array.isArray(row.tags) && (row.tags as string[]).includes(DELETED_RECIPE_TAG);
+}
+
 export interface RecipeDetail {
   id: string;
   title: string;
@@ -137,8 +143,11 @@ export async function getCombinedRecipes(
   }
 
   const dbData = res.data as Record<string, unknown>[] | null;
-  const dbRecipes: Recipe[] = (dbData || []).map(dbRowToRecipe);
-  const seenIds = new Set<string>(dbRecipes.map((r) => r.id));
+  const allRows = dbData || [];
+  const seenIds = new Set<string>(allRows.map((r) => String(r.id)));
+  const dbRecipes: Recipe[] = allRows
+    .filter((row) => !isDeletedRecipeRow(row))
+    .map(dbRowToRecipe);
 
   // 2. Fetch Markdown recipes (from manifest in runtime, or live disk in local dev)
   const mdList = getMarkdownRecipes({ forceManifest: options?.forceManifest });
@@ -189,6 +198,9 @@ export async function getCombinedRecipeById(
 
   if (dbRecipe) {
     const row = dbRecipe as Record<string, unknown>;
+    if (isDeletedRecipeRow(row)) {
+      return null;
+    }
     return {
       id: String(row.id),
       title: String(row.title || ""),

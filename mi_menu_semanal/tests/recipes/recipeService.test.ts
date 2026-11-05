@@ -153,6 +153,29 @@ describe("RecipeService — Combined Read Layer without GET Writes", () => {
     expect(tacos[0].servings).toBe(2);
   });
 
+  it("excludes soft-deleted Markdown recipes (tags containing '_DELETED_') from catalog and detail lookup", async () => {
+    const deletedPollo = {
+      id: "md-pollo-stroganoff",
+      title: "[Eliminada]",
+      image: "https://images.unsplash.com/photo-1495521821757-a1efb6729352?auto=format&fit=crop&q=80&w=800",
+      type: "standard",
+      tags: ["_DELETED_"],
+    };
+
+    const mockSupabase = createMockSupabase([deletedPollo]);
+
+    const recipes = await getCombinedRecipes(mockSupabase, {
+      forceManifest: true,
+    });
+
+    expect(recipes.find((r) => r.id === "md-pollo-stroganoff")).toBeUndefined();
+
+    const detail = await getCombinedRecipeById(mockSupabase, "md-pollo-stroganoff", {
+      forceManifest: true,
+    });
+    expect(detail).toBeNull();
+  });
+
   it("contains strictly unique IDs across the entire returned list", async () => {
     const existingDbRecipes = [
       { id: "md-arroz-meloso-de-pulpo-y-gambones", title: "Pulpo DB", tags: [] },

@@ -5,6 +5,10 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Header } from "@/components/ui/Header";
 import { BottomNav } from "@/components/ui/BottomNav";
 import { createClient } from "@/lib/supabase/client";
+import manifestRecipes from "@/data/markdownRecipesManifest.json";
+
+const MD_PLACEHOLDER_IMAGE =
+  "https://images.unsplash.com/photo-1495521821757-a1efb6729352?auto=format&fit=crop&q=80&w=800";
 
 type Ingredient = { id: string; quantity: string; name: string };
 type Step = { id: string; text: string; image?: File | null };
@@ -26,6 +30,7 @@ function RecipeForm() {
   const [newTag, setNewTag] = useState("");
   const [chefTips, setChefTips] = useState("");
   const [coverImage, setCoverImage] = useState<File | null>(null);
+  const [existingImageUrl, setExistingImageUrl] = useState<string | null>(null);
   
   const [importUrl, setImportUrl] = useState("");
   const [isScraping, setIsScraping] = useState(false);
@@ -59,19 +64,21 @@ function RecipeForm() {
             .from('recipes')
             .select('*')
             .eq('id', editId)
-            .single();
+            .maybeSingle();
             
           if (error) throw error;
-                    if (recipe) {
-              setTitle(recipe.title || "");
-              setTime(recipe.time || "");
-              if (recipe.category_ids && recipe.category_ids.length > 0) {
-                setSelectedCategoryIds(recipe.category_ids);
-              } else if (recipe.category_id) {
-                setSelectedCategoryIds([recipe.category_id]);
-              }
-              setTags(recipe.tags || ["Mediterránea"]);
-            
+
+          if (recipe) {
+            setTitle(recipe.title || "");
+            setTime(recipe.time || "");
+            setExistingImageUrl(recipe.image || null);
+            if (recipe.category_ids && recipe.category_ids.length > 0) {
+              setSelectedCategoryIds(recipe.category_ids);
+            } else if (recipe.category_id) {
+              setSelectedCategoryIds([recipe.category_id]);
+            }
+            setTags(recipe.tags || ["Mediterránea"]);
+
             // Parsear chef_tips si es JSON
             try {
               if (recipe.chef_tips && recipe.chef_tips.startsWith('{')) {
@@ -102,6 +109,34 @@ function RecipeForm() {
                 id: Date.now().toString() + i,
                 text: step.description || "",
                 image: null // We don't fetch image blobs, user must re-upload if changing
+              })));
+            }
+          } else {
+            const mdRecipe = manifestRecipes.find((r) => r.id === editId);
+            if (!mdRecipe) {
+              throw new Error("Receta no encontrada.");
+            }
+
+            setTitle(mdRecipe.title || "");
+            setTime("30 min");
+            setExistingImageUrl(MD_PLACEHOLDER_IMAGE);
+            setTags(mdRecipe.tags && mdRecipe.tags.length > 0 ? mdRecipe.tags : ["Nota"]);
+            setChefTips("");
+            setImportUrl(mdRecipe.sourceUrl || "");
+
+            if (mdRecipe.ingredients && mdRecipe.ingredients.length > 0) {
+              setIngredients(mdRecipe.ingredients.map((ing: { cantidad?: string; ingrediente?: string }, i: number) => ({
+                id: Date.now().toString() + i,
+                quantity: ing.cantidad || "",
+                name: ing.ingrediente || ""
+              })));
+            }
+
+            if (mdRecipe.steps && mdRecipe.steps.length > 0) {
+              setSteps(mdRecipe.steps.map((step: { description?: string }, i: number) => ({
+                id: Date.now().toString() + i,
+                text: step.description || "",
+                image: null
               })));
             }
           }
@@ -297,6 +332,8 @@ function RecipeForm() {
       // Si hay coverImage nueva o si venía del scraping, la incluimos
       if (coverImage || scrapedImageUrl) {
         recipeData.image = coverImageUrl;
+      } else if (existingImageUrl) {
+        recipeData.image = existingImageUrl;
       } else if (!isEditing) {
         recipeData.image = coverImageUrl;
       }
@@ -304,7 +341,13 @@ function RecipeForm() {
       let saveError;
 
       if (isEditing && editId) {
-        const { error } = await supabase.from('recipes').update(recipeData).eq('id', editId);
+        const { error } = await supabase
+          .from('recipes')
+          .upsert({
+            ...recipeData,
+            id: editId,
+            image: recipeData.image || existingImageUrl || coverImageUrl,
+          });
         saveError = error;
       } else {
         const newId = Date.now().toString();
