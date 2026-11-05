@@ -87,11 +87,13 @@ function createMockSupabase(
 }
 
 describe("RecipeService — Combined Read Layer without GET Writes", () => {
-  it("detects all 5 current Markdown recipes", () => {
+  it("detects all 7 current Markdown recipes", () => {
     const mdRecipes = getMarkdownRecipes();
-    expect(mdRecipes).toHaveLength(5);
+    expect(mdRecipes).toHaveLength(7);
     const ids = mdRecipes.map((r) => r.id);
     expect(ids).toContain("md-tacos-big-mac");
+    expect(ids).toContain("md-pollo-stroganoff");
+    expect(ids).toContain("md-sopa-cremosa-de-pollo-con-huevo-pochado");
   });
 
   it("throws error when SupabaseClient is not provided", async () => {

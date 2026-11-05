@@ -10,9 +10,9 @@ import {
 import manifestRecipes from "@/data/markdownRecipesManifest.json";
 
 describe("Markdown Recipes & Netlify Runtime Manifest", () => {
-  it("detects exactly the 5 current Markdown recipes", () => {
+  it("detects all 7 current Markdown recipes", () => {
     const recipes = getMarkdownRecipes();
-    expect(recipes).toHaveLength(5);
+    expect(recipes).toHaveLength(7);
   });
 
   it("identifies a single recipe with ID 'md-tacos-big-mac' with complete metadata", () => {
@@ -60,10 +60,12 @@ describe("Markdown Recipes & Netlify Runtime Manifest", () => {
     const parsed: MarkdownRecipe[] = JSON.parse(raw);
 
     expect(Array.isArray(parsed)).toBe(true);
-    expect(parsed).toHaveLength(5);
+    expect(parsed).toHaveLength(7);
 
     const manifestIds = parsed.map((r) => r.id);
     expect(manifestIds).toContain("md-tacos-big-mac");
+    expect(manifestIds).toContain("md-pollo-stroganoff");
+    expect(manifestIds).toContain("md-sopa-cremosa-de-pollo-con-huevo-pochado");
 
     // Static import matches raw JSON
     expect((manifestRecipes as MarkdownRecipe[]).map((r) => r.id)).toEqual(manifestIds);
@@ -72,7 +74,7 @@ describe("Markdown Recipes & Netlify Runtime Manifest", () => {
   it("provides recipes in runtime without filesystem access via statically bundled manifest", () => {
     // forceManifest simulates Netlify runtime where RecetasNOTAS directory does not exist
     const recipes = getMarkdownRecipes({ forceManifest: true });
-    expect(recipes).toHaveLength(5);
+    expect(recipes).toHaveLength(7);
 
     const tacos = getMarkdownRecipeById("md-tacos-big-mac", { forceManifest: true });
     expect(tacos).not.toBeNull();
